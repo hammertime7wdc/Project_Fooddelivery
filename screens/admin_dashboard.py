@@ -6,7 +6,7 @@ from core.auth import (
     validate_password, validate_full_name, get_password_strength
 )
 from core.database import get_all_orders, update_order_status
-from core.datetime_utils import format_datetime_philippine  # ← ADDED: Import datetime formatter
+from core.datetime_utils import format_datetime_philippine
 from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY
 
 def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
@@ -311,15 +311,116 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
 
     load_users()
 
-    # Orders tab content for admin
+    # Orders tab content for admin with filter functionality
     orders_list = ft.ListView(expand=True, spacing=10, padding=10)
+    current_filter = "all"  # Track current filter
+    
+    # Filter buttons
+    filter_all_btn = ft.ElevatedButton(
+        "All Orders",
+        bgcolor=ACCENT_DARK,
+        color=TEXT_LIGHT,
+        on_click=lambda e: load_orders("all"),
+        icon=ft.Icons.LIST
+    )
+    
+    filter_placed_btn = ft.ElevatedButton(
+        "Placed",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: load_orders("placed"),
+        icon=ft.Icons.SHOPPING_BAG
+    )
+    
+    filter_preparing_btn = ft.ElevatedButton(
+        "Preparing",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: load_orders("preparing"),
+        icon=ft.Icons.RESTAURANT
+    )
+    
+    filter_delivery_btn = ft.ElevatedButton(
+        "Out for Delivery",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: load_orders("out for delivery"),
+        icon=ft.Icons.LOCAL_SHIPPING
+    )
+    
+    filter_delivered_btn = ft.ElevatedButton(
+        "Delivered",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: load_orders("delivered"),
+        icon=ft.Icons.CHECK_CIRCLE
+    )
+    
+    filter_cancelled_btn = ft.ElevatedButton(
+        "Cancelled",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: load_orders("cancelled"),
+        icon=ft.Icons.CANCEL
+    )
 
-    def load_orders():
+    def update_filter_buttons(active_filter):
+        """Update button colors to show active filter"""
+        buttons = {
+            "all": filter_all_btn,
+            "placed": filter_placed_btn,
+            "preparing": filter_preparing_btn,
+            "out for delivery": filter_delivery_btn,
+            "delivered": filter_delivered_btn,
+            "cancelled": filter_cancelled_btn
+        }
+        
+        for filter_name, button in buttons.items():
+            if filter_name == active_filter:
+                button.bgcolor = ACCENT_DARK
+            else:
+                button.bgcolor = "#555"
+        
+        page.update()
+
+    def load_orders(filter_status="all"):
+        nonlocal current_filter
+        current_filter = filter_status
+        update_filter_buttons(filter_status)
+        
         orders_list.controls.clear()
-        orders = get_all_orders()
+        all_orders = get_all_orders()
+        
+        # Filter orders based on status
+        if filter_status == "all":
+            orders = all_orders
+        else:
+            orders = [order for order in all_orders if order['status'] == filter_status]
+        
+        # Show count
+        count_text = ft.Text(
+            f"Showing {len(orders)} order(s)" + (f" with status '{filter_status}'" if filter_status != "all" else ""),
+            size=14,
+            color="grey",
+            italic=True
+        )
+        orders_list.controls.append(count_text)
+        
+        if not orders:
+            orders_list.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        "No orders found with this status.",
+                        size=16,
+                        color="grey",
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                    padding=20,
+                    alignment=ft.alignment.center
+                )
+            )
         
         for order in orders:
-            # ← CHANGED: Use the new formatting function
             formatted_date = format_datetime_philippine(order.get('created_at'))
             
             items_str = "\n".join([f"- {item['name']} (x{item['quantity']}) - ₱{item['price'] * item['quantity']:.2f}" for item in order["items"]])
@@ -363,9 +464,9 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     def on_status_change(e, order_id):
         update_order_status(order_id, e.control.value, current_user["user"]["id"])
         show_snackbar(page, "Status updated!")
-        load_orders()
+        load_orders(current_filter)  # Reload with current filter
 
-    load_orders()
+    load_orders()  # Initial load
 
     return ft.Container(
         content=ft.Column(
@@ -438,6 +539,25 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                             content=ft.Column(
                                 [
                                     ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                    ft.Container(
+                                        content=ft.Column([
+                                            ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                            ft.Row([
+                                                filter_all_btn,
+                                                filter_placed_btn,
+                                                filter_preparing_btn,
+                                            ], wrap=True, spacing=5),
+                                            ft.Row([
+                                                filter_delivery_btn,
+                                                filter_delivered_btn,
+                                                filter_cancelled_btn,
+                                            ], wrap=True, spacing=5)
+                                        ]),
+                                        padding=15,
+                                        border=ft.border.all(1, "white"),
+                                        border_radius=10,
+                                        margin=ft.margin.only(bottom=10)
+                                    ),
                                     orders_list
                                 ],
                                 scroll=ft.ScrollMode.AUTO
