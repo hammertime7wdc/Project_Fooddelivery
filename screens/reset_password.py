@@ -1,0 +1,68 @@
+import flet as ft
+from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
+
+def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
+    email_field = ft.TextField(
+        label="Enter your email",
+        prefix_icon=ft.Icons.EMAIL,
+        width=300,
+        bgcolor=FIELD_BG,
+        color=TEXT_DARK,
+        border_color=FIELD_BORDER,
+        focused_border_color=ACCENT_PRIMARY,
+        border_radius=10
+    )
+
+    def reset_click(e):
+        if not email_field.value:
+            show_snackbar(page, "Please enter your email")
+            return
+        # TODO: Implement actual reset logic if needed (e.g., send email)
+        show_snackbar(page, "Reset link sent! (Placeholder)")
+
+    return ft.Container(
+        content=ft.Column(
+            [
+                ft.Container(height=25),
+
+                ft.Image(
+                    src="assets/login.png",
+                    width=120,
+                    height=120,
+                    fit=ft.ImageFit.CONTAIN
+                ),
+
+                ft.Text("RESET PASSWORD", size=28, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                ft.Text("Enter your email to reset password", size=14, color=TEXT_LIGHT),
+                ft.Container(height=15),
+
+                email_field,
+
+                ft.Container(height=15),
+
+                ft.ElevatedButton(
+                    "Reset Password",
+                    width=250,
+                    height=45,
+                    bgcolor=ACCENT_DARK,
+                    color=TEXT_LIGHT,
+                    on_click=reset_click
+                ),
+
+                ft.TextButton(
+                    "← Back to login",
+                    on_click=goto_login,
+                    style=ft.ButtonStyle(color=TEXT_LIGHT)
+                )
+            ],
+            scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER
+        ),
+        gradient=ft.LinearGradient(
+            begin=ft.alignment.top_center,
+            end=ft.alignment.bottom_center,
+            colors=["#9A031E", "#6B0113"]
+        ),
+        expand=True,
+        padding=20
+    )
