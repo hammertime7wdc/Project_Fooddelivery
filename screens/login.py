@@ -133,17 +133,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                     width=300
                 ),
 
-                ft.Container(
-                    content=ft.Row([
-                        ft.Icon(ft.Icons.SECURITY, color="yellow", size=20),
-                        ft.Text(
-                            "Account locks after 5 failed attempts",
-                            size=11,
-                            color=TEXT_LIGHT
-                        )
-                    ], alignment=ft.MainAxisAlignment.CENTER),
-                    width=300
-                ),
+                
 
                 ft.Container(height=15),
 
