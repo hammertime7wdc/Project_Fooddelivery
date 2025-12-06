@@ -10,7 +10,7 @@ from core.datetime_utils import format_datetime_philippine
 from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY
 
 def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
-    users_list = ft.ListView(expand=True, spacing=10, padding=10)
+    users_list = ft.ListView(spacing=10, padding=10, height=300)
 
     # User filtering state
     current_role_filter = "all"
@@ -507,7 +507,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     load_users()
 
     # Orders tab content for admin with filter functionality
-    orders_list = ft.ListView(expand=True, spacing=10, padding=10)
+    orders_list = ft.ListView(spacing=10, padding=10, height=300)
     current_filter = "all"
     
     # Filter buttons
@@ -681,6 +681,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 ft.Tabs(
                     selected_index=0,
                     animation_duration=300,
+                    expand=True,
                     tabs=[
                         ft.Tab(
                             text="Users",
@@ -784,7 +785,6 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                     ]
                 )
             ],
-            scroll=ft.ScrollMode.AUTO
         ),
         expand=True,
         padding=10,
