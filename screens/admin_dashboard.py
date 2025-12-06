@@ -12,11 +12,16 @@ from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, F
 def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
     users_list = ft.ListView(expand=True, spacing=10, padding=10)
 
+    # User filtering state
+    current_role_filter = "all"
+    current_status_filter = "all"
+    search_query = ""
+
     # Password strength indicator
     password_strength_text = ft.Text("", size=12, color="grey")
     password_strength_bar = ft.ProgressBar(width=250, value=0, color="grey", bgcolor="#333")
     
-    # Password requirements info box (consistent with signup screen)
+    # Password requirements info box
     password_requirements = ft.Container(
         content=ft.Column([
             ft.Icon(ft.Icons.SECURITY, color=TEXT_LIGHT, size=20),
@@ -46,6 +51,84 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         ),
         width=250
     )
+
+    # Validation error texts (hidden by default)
+    email_error = ft.Text("", size=11, color="red", visible=False)
+    password_error = ft.Text("", size=11, color="red", visible=False)
+    name_error = ft.Text("", size=11, color="red", visible=False)
+
+    def validate_email_field():
+        if not new_email.value or new_email.value.strip() == "":
+            email_error.visible = False
+            new_email.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_email(new_email.value)
+            if not is_valid:
+                email_error.value = error_msg
+                email_error.visible = True
+                new_email.border_color = "red"
+            else:
+                email_error.visible = False
+                new_email.border_color = "green"
+        page.update()
+
+    def validate_name_field():
+        if not new_name.value or new_name.value.strip() == "":
+            name_error.visible = False
+            new_name.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_full_name(new_name.value)
+            if not is_valid:
+                name_error.value = error_msg
+                name_error.visible = True
+                new_name.border_color = "red"
+            else:
+                name_error.visible = False
+                new_name.border_color = "green"
+        page.update()
+
+    def update_password_strength():
+        password = new_password.value or ""
+        if not password:
+            password_strength_text.value = ""
+            password_strength_bar.value = 0
+            password_strength_bar.color = "grey"
+            new_password.border_color = FIELD_BORDER
+            password_error.visible = False
+            page.update()
+            return
+
+        strength, score = get_password_strength(password)
+        is_valid, error_msg = validate_password(password)
+
+        # Update strength indicator
+        password_strength_text.value = f"Password Strength: {strength.title()} ({score}%)"
+        password_strength_bar.value = score / 100
+
+        # Color coding
+        if strength == "weak":
+            password_strength_bar.color = "red"
+            password_strength_text.color = "red"
+        elif strength == "medium":
+            password_strength_bar.color = "orange"
+            password_strength_text.color = "orange"
+        elif strength == "strong":
+            password_strength_bar.color = "yellow"
+            password_strength_text.color = "yellow"
+        else:  # very strong
+            password_strength_bar.color = "green"
+            password_strength_text.color = "green"
+
+        # Validation border
+        if is_valid:
+            new_password.border_color = "green"
+            password_error.visible = False
+        else:
+            new_password.border_color = "red"
+            password_error.value = error_msg
+            password_error.visible = True
+
+        page.update()
 
     new_email = ft.TextField(
         hint_text="Email", 
@@ -93,89 +176,193 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         focused_border_color=ACCENT_PRIMARY
     )
 
-    # Validation error texts
-    email_error = ft.Text("", size=11, color="red", visible=False)
-    password_error = ft.Text("", size=11, color="red", visible=False)
-    name_error = ft.Text("", size=11, color="red", visible=False)
+    # User filter components
+    search_field = ft.TextField(
+        hint_text="Search by name or email...",
+        width=300,
+        bgcolor=FIELD_BG,
+        color=TEXT_DARK,
+        border_color=FIELD_BORDER,
+        focused_border_color=ACCENT_PRIMARY,
+        prefix_icon=ft.Icons.SEARCH,
+        on_change=lambda e: on_search_change(e)
+    )
 
-    def validate_email_field():
-        is_valid, error_msg = validate_email(new_email.value or "")
-        if new_email.value:
-            if is_valid:
-                new_email.border_color = "green"
-                email_error.visible = False
+    role_filter_all_btn = ft.ElevatedButton(
+        "All Roles",
+        bgcolor=ACCENT_DARK,
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_role("all"),
+        icon=ft.Icons.PEOPLE
+    )
+    
+    role_filter_customer_btn = ft.ElevatedButton(
+        "Customers",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_role("customer"),
+        icon=ft.Icons.PERSON
+    )
+    
+    role_filter_owner_btn = ft.ElevatedButton(
+        "Owners",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_role("owner"),
+        icon=ft.Icons.STORE
+    )
+    
+    role_filter_admin_btn = ft.ElevatedButton(
+        "Admins",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_role("admin"),
+        icon=ft.Icons.ADMIN_PANEL_SETTINGS
+    )
+
+    status_filter_all_btn = ft.ElevatedButton(
+        "All Status",
+        bgcolor=ACCENT_DARK,
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_status("all"),
+        icon=ft.Icons.LIST
+    )
+    
+    status_filter_active_btn = ft.ElevatedButton(
+        "Active",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_status("active"),
+        icon=ft.Icons.CHECK_CIRCLE
+    )
+    
+    status_filter_disabled_btn = ft.ElevatedButton(
+        "Disabled",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_status("disabled"),
+        icon=ft.Icons.BLOCK
+    )
+    
+    status_filter_locked_btn = ft.ElevatedButton(
+        "Locked",
+        bgcolor="#555",
+        color=TEXT_LIGHT,
+        on_click=lambda e: filter_users_by_status("locked"),
+        icon=ft.Icons.LOCK
+    )
+
+    def update_role_filter_buttons(active_filter):
+        buttons = {
+            "all": role_filter_all_btn,
+            "customer": role_filter_customer_btn,
+            "owner": role_filter_owner_btn,
+            "admin": role_filter_admin_btn
+        }
+        
+        for filter_name, button in buttons.items():
+            if filter_name == active_filter:
+                button.bgcolor = ACCENT_DARK
             else:
-                new_email.border_color = "red"
-                email_error.value = error_msg
-                email_error.visible = True
-        else:
-            new_email.border_color = FIELD_BORDER
-            email_error.visible = False
+                button.bgcolor = "#555"
+        
         page.update()
 
-    def validate_name_field():
-        is_valid, error_msg = validate_full_name(new_name.value or "")
-        if new_name.value:
-            if is_valid:
-                new_name.border_color = "green"
-                name_error.visible = False
+    def update_status_filter_buttons(active_filter):
+        buttons = {
+            "all": status_filter_all_btn,
+            "active": status_filter_active_btn,
+            "disabled": status_filter_disabled_btn,
+            "locked": status_filter_locked_btn
+        }
+        
+        for filter_name, button in buttons.items():
+            if filter_name == active_filter:
+                button.bgcolor = ACCENT_DARK
             else:
-                new_name.border_color = "red"
-                name_error.value = error_msg
-                name_error.visible = True
-        else:
-            new_name.border_color = FIELD_BORDER
-            name_error.visible = False
+                button.bgcolor = "#555"
+        
         page.update()
 
-    def update_password_strength():
-        password = new_password.value or ""
-        if not password:
-            password_strength_text.value = ""
-            password_strength_bar.value = 0
-            password_strength_bar.color = "grey"
-            new_password.border_color = FIELD_BORDER
-            password_error.visible = False
-            page.update()
-            return
+    def filter_users_by_role(role):
+        nonlocal current_role_filter
+        current_role_filter = role
+        update_role_filter_buttons(role)
+        load_users()
 
-        strength, score = get_password_strength(password)
-        is_valid, error_msg = validate_password(password)
+    def filter_users_by_status(status):
+        nonlocal current_status_filter
+        current_status_filter = status
+        update_status_filter_buttons(status)
+        load_users()
 
-        # Update strength indicator
-        password_strength_text.value = f"Password Strength: {strength.title()} ({score}%)"
-        password_strength_bar.value = score / 100
-
-        # Color coding (consistent with signup)
-        if strength == "weak":
-            password_strength_bar.color = "red"
-            password_strength_text.color = "red"
-        elif strength == "medium":
-            password_strength_bar.color = "orange"
-            password_strength_text.color = "orange"
-        elif strength == "strong":
-            password_strength_bar.color = "yellow"
-            password_strength_text.color = "yellow"
-        else:  # very strong
-            password_strength_bar.color = "green"
-            password_strength_text.color = "green"
-
-        # Validation border
-        if is_valid:
-            new_password.border_color = "green"
-            password_error.visible = False
-        else:
-            new_password.border_color = "red"
-            password_error.value = error_msg
-            password_error.visible = True
-
-        page.update()
+    def on_search_change(e):
+        nonlocal search_query
+        search_query = e.control.value.lower().strip()
+        load_users()
 
     def load_users():
         users_list.controls.clear()
-        users = get_all_users()
+        all_users = get_all_users()
+        
+        # Apply filters
+        filtered_users = all_users
+        
+        # Filter by role
+        if current_role_filter != "all":
+            filtered_users = [u for u in filtered_users if u["role"] == current_role_filter]
+        
+        # Filter by status
+        if current_status_filter != "all":
+            if current_status_filter == "active":
+                filtered_users = [u for u in filtered_users if u["is_active"]]
+            elif current_status_filter == "disabled":
+                filtered_users = [u for u in filtered_users if not u["is_active"]]
+            elif current_status_filter == "locked":
+                locked_users = []
+                for u in filtered_users:
+                    if u.get("locked_until"):
+                        try:
+                            locked_until_dt = datetime.fromisoformat(u["locked_until"])
+                            if datetime.now() < locked_until_dt:
+                                locked_users.append(u)
+                        except:
+                            pass
+                filtered_users = locked_users
+        
+        # Filter by search query
+        if search_query:
+            filtered_users = [
+                u for u in filtered_users 
+                if search_query in u["full_name"].lower() or search_query in u["email"].lower()
+            ]
+        
+        # Show count
+        count_text = ft.Text(
+            f"Showing {len(filtered_users)} of {len(all_users)} user(s)",
+            size=14,
+            color="grey",
+            italic=True
+        )
+        users_list.controls.append(count_text)
+        
+        if not filtered_users:
+            users_list.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        "No users found matching the filters.",
+                        size=16,
+                        color="grey",
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                    padding=20,
+                    alignment=ft.alignment.center
+                )
+            )
+            page.update()
+            return
 
-        for user in users:
+        for user in filtered_users:
             # Format last login
             last_login = "Never"
             if user.get("last_login"):
@@ -256,33 +443,40 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         page.update()
 
     def add_user(e):
-        # Validate all fields
+        has_error = False
+        
+        # Validate email
         email_valid, email_msg = validate_email(new_email.value or "")
-        password_valid, password_msg = validate_password(new_password.value or "")
-        name_valid, name_msg = validate_full_name(new_name.value or "")
-
         if not email_valid:
             email_error.value = email_msg
             email_error.visible = True
             new_email.border_color = "red"
-            page.update()
-            show_snackbar(page, email_msg)
-            return
+            has_error = True
+        else:
+            email_error.visible = False
 
+        # Validate password
+        password_valid, password_msg = validate_password(new_password.value or "")
         if not password_valid:
             password_error.value = password_msg
             password_error.visible = True
             new_password.border_color = "red"
-            page.update()
-            show_snackbar(page, password_msg)
-            return
+            has_error = True
+        else:
+            password_error.visible = False
 
+        # Validate name
+        name_valid, name_msg = validate_full_name(new_name.value or "")
         if not name_valid:
             name_error.value = name_msg
             name_error.visible = True
             new_name.border_color = "red"
+            has_error = True
+        else:
+            name_error.visible = False
+
+        if has_error:
             page.update()
-            show_snackbar(page, name_msg)
             return
 
         success, msg = create_user_by_admin(
@@ -307,13 +501,14 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             name_error.visible = False
             password_strength_text.value = ""
             password_strength_bar.value = 0
+            page.update()
             load_users()
 
     load_users()
 
     # Orders tab content for admin with filter functionality
     orders_list = ft.ListView(expand=True, spacing=10, padding=10)
-    current_filter = "all"  # Track current filter
+    current_filter = "all"
     
     # Filter buttons
     filter_all_btn = ft.ElevatedButton(
@@ -365,7 +560,6 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     )
 
     def update_filter_buttons(active_filter):
-        """Update button colors to show active filter"""
         buttons = {
             "all": filter_all_btn,
             "placed": filter_placed_btn,
@@ -391,13 +585,11 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         orders_list.controls.clear()
         all_orders = get_all_orders()
         
-        # Filter orders based on status
         if filter_status == "all":
             orders = all_orders
         else:
             orders = [order for order in all_orders if order['status'] == filter_status]
         
-        # Show count
         count_text = ft.Text(
             f"Showing {len(orders)} order(s)" + (f" with status '{filter_status}'" if filter_status != "all" else ""),
             size=14,
@@ -464,9 +656,9 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     def on_status_change(e, order_id):
         update_order_status(order_id, e.control.value, current_user["user"]["id"])
         show_snackbar(page, "Status updated!")
-        load_orders(current_filter)  # Reload with current filter
+        load_orders(current_filter)
 
-    load_orders()  # Initial load
+    load_orders()
 
     return ft.Container(
         content=ft.Column(
@@ -528,6 +720,32 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                         border_radius=10
                                     ),
                                     ft.Container(height=10),
+                                    ft.Text("Filter Users", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                    ft.Container(
+                                        content=ft.Column([
+                                            search_field,
+                                            ft.Container(height=10),
+                                            ft.Text("Filter by Role:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                            ft.Row([
+                                                role_filter_all_btn,
+                                                role_filter_customer_btn,
+                                                role_filter_owner_btn,
+                                                role_filter_admin_btn,
+                                            ], wrap=True, spacing=5),
+                                            ft.Container(height=10),
+                                            ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                            ft.Row([
+                                                status_filter_all_btn,
+                                                status_filter_active_btn,
+                                                status_filter_disabled_btn,
+                                                status_filter_locked_btn,
+                                            ], wrap=True, spacing=5)
+                                        ]),
+                                        padding=15,
+                                        border=ft.border.all(1, "white"),
+                                        border_radius=10,
+                                        margin=ft.margin.only(bottom=10)
+                                    ),
                                     ft.Text("All Users", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
                                     users_list
                                 ],
