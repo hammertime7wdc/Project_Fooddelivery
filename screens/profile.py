@@ -19,10 +19,11 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        max_length=100
+        max_length=100,
+        on_change=lambda e: validate_name_field()
     )
     
-    name_error = ft.Text("", size=12, color="white", weight=ft.FontWeight.BOLD, visible=False)
+    name_error = ft.Text("", size=11, color="red", visible=False)
     
     email_field = ft.TextField(
         label="Email", 
@@ -32,10 +33,11 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        max_length=254
+        max_length=254,
+        on_change=lambda e: validate_email_field()
     )
     
-    email_error = ft.Text("", size=12, color="white", weight=ft.FontWeight.BOLD, visible=False)
+    email_error = ft.Text("", size=11, color="red", visible=False)
     
     address_field = ft.TextField(
         label="Address", 
@@ -101,6 +103,8 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     )
 
     def update_password_strength(password):
+        validate_password_field(password)
+        
         if not password:
             password_strength_bar.value = 0
             password_strength_bar.color = "grey"
@@ -140,6 +144,8 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         on_change=lambda e: update_password_strength(e.control.value)
     )
     
+    password_error = ft.Text("", size=11, color="red", visible=False)
+    
     confirm_password = ft.TextField(
         label="Confirm New Password", 
         password=True, 
@@ -151,6 +157,52 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         focused_border_color=ACCENT_PRIMARY,
         max_length=128
     )
+    
+    # Real-time validation functions
+    def validate_name_field():
+        if not name_field.value or name_field.value.strip() == "":
+            name_error.visible = False
+            name_field.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_full_name(name_field.value)
+            if not is_valid:
+                name_error.value = error_msg
+                name_error.visible = True
+                name_field.border_color = "red"
+            else:
+                name_error.visible = False
+                name_field.border_color = "green"
+        page.update()
+    
+    def validate_email_field():
+        if not email_field.value or email_field.value.strip() == "":
+            email_error.visible = False
+            email_field.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_email(email_field.value)
+            if not is_valid:
+                email_error.value = error_msg
+                email_error.visible = True
+                email_field.border_color = "red"
+            else:
+                email_error.visible = False
+                email_field.border_color = "green"
+        page.update()
+    
+    def validate_password_field(password):
+        if not password:
+            password_error.visible = False
+            new_password.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_password(password)
+            if not is_valid:
+                password_error.value = error_msg
+                password_error.visible = True
+                new_password.border_color = "red"
+            else:
+                password_error.visible = False
+                new_password.border_color = "green"
+        page.update()
 
     profile_pic_preview = ft.Container(
         content=create_profile_pic_widget(user, 150, 150),
@@ -197,21 +249,23 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         
         valid, msg = validate_full_name(name_field.value)
         if not valid:
-            name_error.value = "⚠️ " + msg
+            name_error.value = msg
             name_error.visible = True
+            name_field.border_color = "red"
             has_error = True
         else:
-            name_error.value = ""
             name_error.visible = False
+            name_field.border_color = "green"
         
         valid, msg = validate_email(email_field.value)
         if not valid:
-            email_error.value = "⚠️ " + msg
+            email_error.value = msg
             email_error.visible = True
+            email_field.border_color = "red"
             has_error = True
         else:
-            email_error.value = ""
             email_error.visible = False
+            email_field.border_color = "green"
         
         if has_error:
             page.update()
@@ -306,8 +360,10 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 ft.Text("Personal Information", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
                 name_field,
                 name_error,
+                ft.Container(height=5),
                 email_field,
                 email_error,
+                ft.Container(height=5),
                 address_field,
                 contact_field,
 
@@ -319,6 +375,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 password_requirements,
                 current_password,
                 new_password,
+                password_error,
                 password_strength_bar,
                 password_strength_text,
                 confirm_password,
