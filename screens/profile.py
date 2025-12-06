@@ -1,13 +1,15 @@
 import flet as ft
 import base64
-from core.auth import get_user_by_id, update_user_profile, change_password
+import re
+from core.auth import get_user_by_id, update_user_profile, change_password, validate_email, validate_password, validate_full_name, get_password_strength
 from utils import show_snackbar, create_profile_pic_widget, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
 
 def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback):
-    user = get_user_by_id(current_user["user"]["id"])  # Refresh user data
+    user = get_user_by_id(current_user["user"]["id"])
     if not user:
         show_snackbar(page, "User not found")
         back_callback(None)
+        return ft.Container()
 
     name_field = ft.TextField(
         label="Full Name", 
@@ -16,8 +18,12 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY
+        focused_border_color=ACCENT_PRIMARY,
+        max_length=100
     )
+    
+    name_error = ft.Text("", size=12, color="white", weight=ft.FontWeight.BOLD, visible=False)
+    
     email_field = ft.TextField(
         label="Email", 
         value=user["email"], 
@@ -25,8 +31,12 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY
+        focused_border_color=ACCENT_PRIMARY,
+        max_length=254
     )
+    
+    email_error = ft.Text("", size=12, color="white", weight=ft.FontWeight.BOLD, visible=False)
+    
     address_field = ft.TextField(
         label="Address", 
         value=user["address"] or "", 
@@ -56,6 +66,67 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY
     )
+    
+    password_strength_text = ft.Text("", size=12, color="grey")
+    password_strength_bar = ft.ProgressBar(width=300, value=0, color="grey", bgcolor="#333")
+    
+    password_requirements = ft.Container(
+        content=ft.Column([
+            ft.Icon(ft.Icons.SECURITY, color=TEXT_LIGHT, size=20),
+            ft.Text(
+                "Password Requirements:",
+                size=12,
+                weight=ft.FontWeight.BOLD,
+                color=TEXT_LIGHT
+            ),
+            ft.Text(
+                "• At least 8 characters\n"
+                "• One uppercase letter (A-Z)\n"
+                "• One lowercase letter (a-z)\n"
+                "• One number (0-9)\n"
+                "• One special character (!@#$%...)",
+                size=10,
+                color=TEXT_LIGHT
+            )
+        ]),
+        padding=10,
+        border=ft.border.all(1, "white"),
+        border_radius=10,
+        gradient=ft.LinearGradient(
+            begin=ft.alignment.top_center,
+            end=ft.alignment.bottom_center,
+            colors=["#6B0113", ACCENT_DARK]
+        ),
+        width=300
+    )
+
+    def update_password_strength(password):
+        if not password:
+            password_strength_bar.value = 0
+            password_strength_bar.color = "grey"
+            password_strength_text.value = ""
+            password_strength_text.color = "grey"
+        else:
+            strength, score = get_password_strength(password)
+            password_strength_bar.value = score / 100
+            
+            if strength == 'weak':
+                password_strength_bar.color = "red"
+                password_strength_text.color = "red"
+            elif strength == 'medium':
+                password_strength_bar.color = "orange"
+                password_strength_text.color = "orange"
+            elif strength == 'strong':
+                password_strength_bar.color = "yellow"
+                password_strength_text.color = "yellow"
+            else:
+                password_strength_bar.color = "green"
+                password_strength_text.color = "green"
+            
+            password_strength_text.value = f"Password Strength: {strength.title()} ({score}%)"
+        
+        page.update()
+    
     new_password = ft.TextField(
         label="New Password", 
         password=True, 
@@ -64,8 +135,11 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY
+        focused_border_color=ACCENT_PRIMARY,
+        max_length=128,
+        on_change=lambda e: update_password_strength(e.control.value)
     )
+    
     confirm_password = ft.TextField(
         label="Confirm New Password", 
         password=True, 
@@ -74,7 +148,8 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY
+        focused_border_color=ACCENT_PRIMARY,
+        max_length=128
     )
 
     profile_pic_preview = ft.Container(
@@ -88,13 +163,10 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
 
     uploaded_pic = {"data": user.get("profile_picture"), "type": user.get("pic_type") or "emoji"}
 
-    file_picker = ft.FilePicker(on_result=lambda e: handle_pic_pick(e))
-    page.overlay.append(file_picker)
-
     def handle_pic_pick(e: ft.FilePickerResultEvent):
         if e.files:
             file = e.files[0]
-            if file.size > 1048576:  # 1MB limit
+            if file.size > 1048576:
                 show_snackbar(page, "Image size must be under 1MB")
                 return
             if not file.name.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
@@ -117,29 +189,63 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
             except Exception as ex:
                 show_snackbar(page, f"Error: {str(ex)}")
 
+    file_picker = ft.FilePicker(on_result=handle_pic_pick)
+    page.overlay.append(file_picker)
+
     def save_profile(e):
-        if not name_field.value or not email_field.value:
-            show_snackbar(page, "Name and email required")
+        has_error = False
+        
+        valid, msg = validate_full_name(name_field.value)
+        if not valid:
+            name_error.value = "⚠️ " + msg
+            name_error.visible = True
+            has_error = True
+        else:
+            name_error.value = ""
+            name_error.visible = False
+        
+        valid, msg = validate_email(email_field.value)
+        if not valid:
+            email_error.value = "⚠️ " + msg
+            email_error.visible = True
+            has_error = True
+        else:
+            email_error.value = ""
+            email_error.visible = False
+        
+        if has_error:
+            page.update()
             return
+        
+        if contact_field.value and len(contact_field.value) > 0:
+            if not re.match(r'^[\d\s\-\+\(\)]+$', contact_field.value):
+                show_snackbar(page, "Invalid contact number format")
+                return
+        
         success, msg = update_user_profile(
             current_user["user"]["id"],
             current_user["user"]["id"],
-            name_field.value,
-            email_field.value,
-            address=address_field.value,
-            contact=contact_field.value,
+            name_field.value.strip(),
+            email_field.value.strip(),
+            address=address_field.value.strip() if address_field.value else None,
+            contact=contact_field.value.strip() if contact_field.value else None,
             profile_pic=uploaded_pic["data"],
             pic_type=uploaded_pic["type"]
         )
         show_snackbar(page, msg)
         if success:
-            # Update the current_user dictionary with new values
-            current_user["user"]["full_name"] = name_field.value
-            current_user["user"]["email"] = email_field.value
-            current_user["user"]["address"] = address_field.value
-            current_user["user"]["contact"] = contact_field.value
+            current_user["user"]["full_name"] = name_field.value.strip()
+            current_user["user"]["email"] = email_field.value.strip()
+            current_user["user"]["address"] = address_field.value.strip() if address_field.value else None
+            current_user["user"]["contact"] = contact_field.value.strip() if contact_field.value else None
             current_user["user"]["profile_picture"] = uploaded_pic["data"]
             current_user["user"]["pic_type"] = uploaded_pic["type"]
+            
+            name_error.value = ""
+            name_error.visible = False
+            email_error.value = ""
+            email_error.visible = False
+            page.update()
             
             back_callback(e)
 
@@ -147,9 +253,20 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         if not current_password.value or not new_password.value or not confirm_password.value:
             show_snackbar(page, "Fill all password fields")
             return
+        
+        valid, msg = validate_password(new_password.value)
+        if not valid:
+            show_snackbar(page, msg)
+            return
+        
         if new_password.value != confirm_password.value:
             show_snackbar(page, "New passwords don't match")
             return
+        
+        if current_password.value == new_password.value:
+            show_snackbar(page, "New password must be different from current password")
+            return
+        
         success, msg = change_password(
             current_user["user"]["id"],
             current_password.value,
@@ -160,6 +277,10 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
             current_password.value = ""
             new_password.value = ""
             confirm_password.value = ""
+            password_strength_bar.value = 0
+            password_strength_bar.color = "grey"
+            password_strength_text.value = ""
+            password_strength_text.color = "grey"
             page.update()
 
     return ft.Container(
@@ -180,8 +301,13 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                     )
                 ),
 
+                ft.Divider(color="grey", height=20),
+
+                ft.Text("Personal Information", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
                 name_field,
+                name_error,
                 email_field,
+                email_error,
                 address_field,
                 contact_field,
 
@@ -190,8 +316,11 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 ft.Divider(color="grey"),
 
                 ft.Text("Change Password", size=20, color=TEXT_LIGHT),
+                password_requirements,
                 current_password,
                 new_password,
+                password_strength_bar,
+                password_strength_text,
                 confirm_password,
                 ft.ElevatedButton("Update Password", bgcolor=ACCENT_DARK, color=TEXT_LIGHT, on_click=change_pass)
             ],
