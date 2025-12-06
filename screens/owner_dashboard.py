@@ -7,7 +7,7 @@ from utils import show_snackbar, create_image_widget, TEXT_LIGHT, ACCENT_DARK, F
 
 def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
     # Menu filter functionality
-    menu_list = ft.ListView(expand=True, spacing=10, padding=10)
+    menu_list = ft.ListView(spacing=10, padding=10, height=300)
     current_menu_filter = "All"  # Track current menu filter
     
     # Menu filter buttons
@@ -341,80 +341,8 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     form_container.border = ft.border.all(2, "black")
     form_container.border_radius = 10
 
-    # Menu filter functionality
-    menu_list = ft.ListView(expand=True, spacing=10, padding=10)
-    current_menu_filter = "All"  # Track current menu filter
-    
-    # Menu filter buttons
-    menu_filter_all_btn = ft.ElevatedButton(
-        "All",
-        bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_menu("All"),
-        icon=ft.Icons.RESTAURANT_MENU
-    )
-    
-    menu_filter_appetizers_btn = ft.ElevatedButton(
-        "Appetizers",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_menu("Appetizers"),
-        icon=ft.Icons.RESTAURANT
-    )
-    
-    menu_filter_mains_btn = ft.ElevatedButton(
-        "Mains",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_menu("Mains"),
-        icon=ft.Icons.DINNER_DINING
-    )
-    
-    menu_filter_desserts_btn = ft.ElevatedButton(
-        "Desserts",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_menu("Desserts"),
-        icon=ft.Icons.CAKE
-    )
-    
-    menu_filter_drinks_btn = ft.ElevatedButton(
-        "Drinks",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_menu("Drinks"),
-        icon=ft.Icons.LOCAL_BAR
-    )
-    
-    menu_filter_other_btn = ft.ElevatedButton(
-        "Other",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_menu("Other"),
-        icon=ft.Icons.MORE_HORIZ
-    )
-
-    def update_menu_filter_buttons(active_filter):
-        """Update menu button colors to show active filter"""
-        buttons = {
-            "All": menu_filter_all_btn,
-            "Appetizers": menu_filter_appetizers_btn,
-            "Mains": menu_filter_mains_btn,
-            "Desserts": menu_filter_desserts_btn,
-            "Drinks": menu_filter_drinks_btn,
-            "Other": menu_filter_other_btn
-        }
-        
-        for filter_name, button in buttons.items():
-            if filter_name == active_filter:
-                button.bgcolor = ACCENT_DARK
-            else:
-                button.bgcolor = "#555"
-        
-        page.update()
-
     # Orders tab content with filter functionality
-    orders_list = ft.ListView(expand=True, spacing=10, padding=10)
+    orders_list = ft.ListView(spacing=10, padding=10, height=300)
     current_filter = "all"  # Track current filter
     
     # Filter buttons
@@ -592,71 +520,79 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 ft.Tabs(
                     selected_index=0,
                     animation_duration=300,
+                    expand=True,
                     tabs=[
                         ft.Tab(
                             text="Menu",
-                            content=ft.Column(
-                                [
-                                    ft.Text("Menu Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                    ft.Container(
-                                        content=ft.Column([
-                                            ft.Text("Filter by Category:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                            ft.Row([
-                                                menu_filter_all_btn,
-                                                menu_filter_appetizers_btn,
-                                                menu_filter_mains_btn,
-                                            ], wrap=True, spacing=5),
-                                            ft.Row([
-                                                menu_filter_desserts_btn,
-                                                menu_filter_drinks_btn,
-                                                menu_filter_other_btn,
-                                            ], wrap=True, spacing=5)
-                                        ]),
-                                        padding=15,
-                                        border=ft.border.all(1, "white"),
-                                        border_radius=10,
-                                        margin=ft.margin.only(bottom=10)
-                                    ),
-                                    menu_list,
-                                    ft.ElevatedButton("Add New Item +", width=350, bgcolor=ACCENT_DARK, color=TEXT_LIGHT, on_click=show_form),
-                                    form_container
-                                ],
-                                scroll=ft.ScrollMode.AUTO
+                            content=ft.Container(
+                                content=ft.Column(
+                                    [
+                                        ft.Text("Menu Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                        ft.Container(
+                                            content=ft.Column([
+                                                ft.Text("Filter by Category:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                                ft.Row([
+                                                    menu_filter_all_btn,
+                                                    menu_filter_appetizers_btn,
+                                                    menu_filter_mains_btn,
+                                                ], wrap=True, spacing=5),
+                                                ft.Row([
+                                                    menu_filter_desserts_btn,
+                                                    menu_filter_drinks_btn,
+                                                    menu_filter_other_btn,
+                                                ], wrap=True, spacing=5)
+                                            ]),
+                                            padding=15,
+                                            border=ft.border.all(1, "white"),
+                                            border_radius=10,
+                                            margin=ft.margin.only(bottom=10)
+                                        ),
+                                        menu_list,
+                                        ft.ElevatedButton("Add New Item +", width=350, bgcolor=ACCENT_DARK, color=TEXT_LIGHT, on_click=show_form),
+                                        form_container
+                                    ],
+                                    scroll=ft.ScrollMode.AUTO,
+                                    spacing=10
+                                ),
+                                expand=True
                             )
                         ),
                         ft.Tab(
                             text="Orders",
-                            content=ft.Column(
-                                [
-                                    ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                    ft.Container(
-                                        content=ft.Column([
-                                            ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                            ft.Row([
-                                                filter_all_btn,
-                                                filter_placed_btn,
-                                                filter_preparing_btn,
-                                            ], wrap=True, spacing=5),
-                                            ft.Row([
-                                                filter_delivery_btn,
-                                                filter_delivered_btn,
-                                                filter_cancelled_btn,
-                                            ], wrap=True, spacing=5)
-                                        ]),
-                                        padding=15,
-                                        border=ft.border.all(1, "white"),
-                                        border_radius=10,
-                                        margin=ft.margin.only(bottom=10)
-                                    ),
-                                    orders_list
-                                ],
-                                scroll=ft.ScrollMode.AUTO
+                            content=ft.Container(
+                                content=ft.Column(
+                                    [
+                                        ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                        ft.Container(
+                                            content=ft.Column([
+                                                ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                                ft.Row([
+                                                    filter_all_btn,
+                                                    filter_placed_btn,
+                                                    filter_preparing_btn,
+                                                ], wrap=True, spacing=5),
+                                                ft.Row([
+                                                    filter_delivery_btn,
+                                                    filter_delivered_btn,
+                                                    filter_cancelled_btn,
+                                                ], wrap=True, spacing=5)
+                                            ]),
+                                            padding=15,
+                                            border=ft.border.all(1, "white"),
+                                            border_radius=10,
+                                            margin=ft.margin.only(bottom=10)
+                                        ),
+                                        orders_list
+                                    ],
+                                    scroll=ft.ScrollMode.AUTO,
+                                    spacing=10
+                                ),
+                                expand=True
                             )
                         )
                     ]
                 )
             ],
-            scroll=ft.ScrollMode.AUTO
         ),
         expand=True,
         padding=10,
