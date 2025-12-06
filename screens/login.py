@@ -3,9 +3,28 @@ from datetime import datetime
 import threading
 import time
 from core.auth import authenticate_user, validate_email
-from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_DARK
+from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER
 
-def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard):
+def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, logout_message=None, session_timed_out=None, cause=None):
+    # Determine what message to show
+    message_to_show = None
+    if logout_message:
+        message_to_show = logout_message
+    elif cause == "timeout" and session_timed_out and session_timed_out.get("flag") is True:
+        message_to_show = "Looks like you wandered off! Your session has ended."
+        session_timed_out["flag"] = False
+    
+    # If we have a message, add snackbar to page overlay immediately
+    if message_to_show:
+        snackbar = ft.SnackBar(
+            content=ft.Text(message_to_show, color="white", size=14),
+            bgcolor="#1a1a1a",
+            duration=8000,
+            open=True,
+        )
+        page.overlay.append(snackbar)
+        page.update()
+    
     # Email field with error state
     email_field = ft.TextField(
         label="Email",
@@ -153,7 +172,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         show_snackbar(page, f"Welcome back, {user['full_name']}!")
         goto_dashboard(user["role"])
 
-    return ft.Container(
+    login_container = ft.Container(
         content=ft.Column(
             [
                 ft.Container(height=25),
@@ -244,3 +263,5 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         expand=True,
         padding=20
     )
+    
+    return login_container
