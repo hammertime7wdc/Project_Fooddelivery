@@ -10,7 +10,8 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        border_radius=10,
+        on_change=lambda e: validate_name_field()
     )
     email_field = ft.TextField(
         label="Email", 
@@ -19,7 +20,8 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        border_radius=10,
+        on_change=lambda e: validate_email_field()
     )
     password_field = ft.TextField(
         label="Password",
@@ -34,11 +36,63 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
         on_change=lambda e: update_password_strength(e.control.value)
     )
     
+    # Validation error texts (hidden by default)
+    name_error = ft.Text("", size=11, color="red", visible=False)
+    email_error = ft.Text("", size=11, color="red", visible=False)
+    password_error = ft.Text("", size=11, color="red", visible=False)
+    
     # Password strength indicator
     strength_bar = ft.ProgressBar(width=300, value=0, color="grey", bgcolor="#333")
     strength_text = ft.Text("", size=12, color="grey")
     
+    def validate_name_field():
+        if not name_field.value or name_field.value.strip() == "":
+            name_error.visible = False
+            name_field.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_full_name(name_field.value)
+            if not is_valid:
+                name_error.value = error_msg
+                name_error.visible = True
+                name_field.border_color = "red"
+            else:
+                name_error.visible = False
+                name_field.border_color = "green"
+        page.update()
+    
+    def validate_email_field():
+        if not email_field.value or email_field.value.strip() == "":
+            email_error.visible = False
+            email_field.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_email(email_field.value)
+            if not is_valid:
+                email_error.value = error_msg
+                email_error.visible = True
+                email_field.border_color = "red"
+            else:
+                email_error.visible = False
+                email_field.border_color = "green"
+        page.update()
+    
+    def validate_password_field(password):
+        if not password:
+            password_error.visible = False
+            password_field.border_color = FIELD_BORDER
+        else:
+            is_valid, error_msg = validate_password(password)
+            if not is_valid:
+                password_error.value = error_msg
+                password_error.visible = True
+                password_field.border_color = "red"
+            else:
+                password_error.visible = False
+                password_field.border_color = "green"
+        page.update()
+    
     def update_password_strength(password):
+        validate_password_field(password)
+        
         if not password:
             strength_bar.value = 0
             strength_bar.color = "grey"
@@ -109,8 +163,13 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
                 ft.Container(height=15),
 
                 name_field,
+                name_error,
+                ft.Container(height=5),
                 email_field,
+                email_error,
+                ft.Container(height=5),
                 password_field,
+                password_error,
                 strength_bar,
                 strength_text,
 
