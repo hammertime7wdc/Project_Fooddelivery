@@ -1,6 +1,8 @@
 import flet as ft
-import base64
 import re
+import uuid
+import shutil
+import os
 from core.auth import get_user_by_id, update_user_profile, change_password, validate_email, validate_password, validate_full_name, get_password_strength
 from utils import show_snackbar, create_profile_pic_widget, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
 
@@ -225,12 +227,24 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 show_snackbar(page, "Only JPG, PNG, GIF allowed")
                 return
             try:
-                with open(file.path, 'rb') as f:
-                    image_data = base64.b64encode(f.read()).decode('utf-8')
-                uploaded_pic["data"] = image_data
-                uploaded_pic["type"] = "base64"
+                # Generate unique filename for profile picture
+                user_id = current_user["user"]["id"]
+                file_ext = os.path.splitext(file.name)[1].lower()
+                unique_filename = f"profile_{user_id}_{uuid.uuid4().hex[:8]}{file_ext}"
+                
+                # Copy file to assets/profiles/
+                profiles_dir = "assets/profiles"
+                os.makedirs(profiles_dir, exist_ok=True)
+                dest_path = os.path.join(profiles_dir, unique_filename)
+                shutil.copy(file.path, dest_path)
+                
+                # Store only filename in database (file-based approach)
+                uploaded_pic["data"] = unique_filename
+                uploaded_pic["type"] = "path"
+                
+                # Update preview to show file path
                 profile_pic_preview.content = ft.Image(
-                    src_base64=image_data,
+                    src=dest_path,
                     width=150,
                     height=150,
                     fit=ft.ImageFit.COVER,
