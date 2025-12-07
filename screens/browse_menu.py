@@ -47,6 +47,14 @@ def load_image_from_binary(item):
 
 def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart, goto_profile, goto_history, goto_logout):
     menu_list = ft.ListView(expand=True, spacing=10, padding=10)
+    
+    # Pagination state
+    current_page = {"page": 1}
+    items_per_page = 10
+    total_pages = {"count": 1}
+    all_filtered_items = {"items": []}
+    
+    page_info_text = ft.Text("", size=13, color=TEXT_LIGHT, text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.W_500)
 
     def add_to_cart(item, qty):
         try:
@@ -73,7 +81,10 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
             cart.append({"id": item["id"], "name": item["name"], "price": item["price"], "quantity": qty})
             show_snackbar(page, f"Added {qty} x {item['name']} to cart")
 
-    def load_menu(category="All", search=""):
+    def load_menu(category="All", search="", reset_page=True):
+        if reset_page:
+            current_page["page"] = 1
+            
         menu_list.controls.clear()
         items = get_all_menu_items()
 
@@ -83,8 +94,23 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
         if search:
             items = [item for item in items if search.lower() in item["name"].lower() or search.lower() in item["description"].lower()]
 
-        # Limit to 50 items for performance
-        items = items[:50]
+        # Store all filtered items for pagination
+        all_filtered_items["items"] = items
+        
+        # Calculate total pages
+        total_pages["count"] = max(1, (len(items) + items_per_page - 1) // items_per_page)
+        
+        # Ensure current page is within bounds
+        if current_page["page"] > total_pages["count"]:
+            current_page["page"] = total_pages["count"]
+        
+        # Calculate pagination slice
+        start_idx = (current_page["page"] - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        items = items[start_idx:end_idx]
+        
+        # Update page info
+        page_info_text.value = f"{current_page['page']} / {total_pages['count']}"
 
         for item in items:
             qty = ft.TextField(
@@ -148,10 +174,28 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
         # Update once after all items added
         page.update()
 
+    def goto_first_page(e):
+        current_page["page"] = 1
+        load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+
+    def goto_prev_page(e):
+        if current_page["page"] > 1:
+            current_page["page"] -= 1
+            load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+
+    def goto_next_page(e):
+        if current_page["page"] < total_pages["count"]:
+            current_page["page"] += 1
+            load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+
+    def goto_last_page(e):
+        current_page["page"] = total_pages["count"]
+        load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+
     search_field = ft.TextField(
         hint_text="Search menu...", 
         width=300, 
-        on_change=lambda e: load_menu(category=category_dropdown.value, search=e.control.value),
+        on_change=lambda e: load_menu(category=category_dropdown.value, search=e.control.value, reset_page=True),
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
@@ -163,11 +207,84 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
         width=300,
         options=[ft.dropdown.Option(c) for c in get_categories()] + [ft.dropdown.Option("All")],
         value="All",
-        on_change=lambda e: load_menu(category=e.control.value, search=search_field.value),
+        on_change=lambda e: load_menu(category=e.control.value, search=search_field.value, reset_page=True),
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY
+    )
+    
+    # Pagination controls - Modern clean design with responsive layout
+    pagination_controls = ft.Container(
+        content=ft.ResponsiveRow(
+            [
+                ft.Container(
+                    content=ft.IconButton(
+                        icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_LEFT,
+                        icon_color=TEXT_LIGHT,
+                        icon_size=20,
+                        on_click=goto_first_page,
+                        tooltip="First Page"
+                    ),
+                    bgcolor="#1a1a1a",
+                    border_radius=8,
+                    padding=5,
+                    col={"xs": 2, "sm": 1, "md": 1}
+                ),
+                ft.Container(
+                    content=ft.IconButton(
+                        icon=ft.Icons.CHEVRON_LEFT,
+                        icon_color=TEXT_LIGHT,
+                        icon_size=20,
+                        on_click=goto_prev_page,
+                        tooltip="Previous"
+                    ),
+                    bgcolor="#1a1a1a",
+                    border_radius=8,
+                    padding=5,
+                    col={"xs": 2, "sm": 1, "md": 1}
+                ),
+                ft.Container(
+                    content=page_info_text,
+                    bgcolor=ACCENT_DARK,
+                    border_radius=8,
+                    padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                    border=ft.border.all(1, ACCENT_PRIMARY),
+                    alignment=ft.alignment.center,
+                    col={"xs": 4, "sm": 4, "md": 2, "lg": 2, "xl": 1}
+                ),
+                ft.Container(
+                    content=ft.IconButton(
+                        icon=ft.Icons.CHEVRON_RIGHT,
+                        icon_color=TEXT_LIGHT,
+                        icon_size=20,
+                        on_click=goto_next_page,
+                        tooltip="Next"
+                    ),
+                    bgcolor="#1a1a1a",
+                    border_radius=8,
+                    padding=5,
+                    col={"xs": 2, "sm": 1, "md": 1}
+                ),
+                ft.Container(
+                    content=ft.IconButton(
+                        icon=ft.Icons.KEYBOARD_DOUBLE_ARROW_RIGHT,
+                        icon_color=TEXT_LIGHT,
+                        icon_size=20,
+                        on_click=goto_last_page,
+                        tooltip="Last Page"
+                    ),
+                    bgcolor="#1a1a1a",
+                    border_radius=8,
+                    padding=5,
+                    col={"xs": 2, "sm": 1, "md": 1}
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER
+        ),
+        padding=ft.padding.symmetric(vertical=15, horizontal=10),
+        border_radius=10
     )
 
     load_menu()
@@ -195,7 +312,8 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
 
                 search_field,
                 category_dropdown,
-                menu_list
+                menu_list,
+                pagination_controls
             ],
             scroll=ft.ScrollMode.AUTO
         ),
