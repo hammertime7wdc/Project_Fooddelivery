@@ -1,5 +1,7 @@
 import flet as ft
-import base64
+import shutil
+import os
+import uuid
 from datetime import datetime
 from core.database import get_all_menu_items, create_menu_item, update_menu_item, delete_menu_item, get_all_orders, update_order_status
 from core.datetime_utils import format_datetime_philippine
@@ -227,15 +229,23 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 show_snackbar(page, "Only JPG, PNG, GIF allowed")
                 return
             try:
-                with open(file.path, 'rb') as f:
-                    image_data = base64.b64encode(f.read()).decode('utf-8')
+                # Generate unique filename
+                file_ext = os.path.splitext(file.name)[1]
+                filename = f"{uuid.uuid4()}{file_ext}"
+                assets_path = "assets/menu"
+                dest_path = os.path.join(assets_path, filename)
                 
-                uploaded_image["data"] = image_data
-                uploaded_image["type"] = "base64"
+                # Copy file to assets folder
+                os.makedirs(assets_path, exist_ok=True)
+                shutil.copy(file.path, dest_path)
                 
-                # Update preview
+                # Store just the filename, not the full path
+                uploaded_image["data"] = filename
+                uploaded_image["type"] = "path"
+                
+                # Update preview using file path
                 image_preview.content = ft.Image(
-                    src_base64=image_data,
+                    src=dest_path,
                     width=150,
                     height=150,
                     fit=ft.ImageFit.COVER,

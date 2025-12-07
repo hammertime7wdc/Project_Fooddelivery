@@ -1,6 +1,49 @@
 import flet as ft
+import threading
 from core.database import get_all_menu_items, get_categories
-from utils import show_snackbar, create_image_widget, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
+from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
+
+# Image cache to avoid reloading
+image_cache = {}
+
+def load_image_from_binary(item):
+    """Load image from file path - for fast binary transmission"""
+    try:
+        item_id = item.get("id")
+        
+        # Check cache first
+        if item_id in image_cache:
+            return image_cache[item_id]
+        
+        # Load from file path stored in database
+        if item.get("image_type") == "path" and item.get("image"):
+            # Path is relative: "uuid.jpg" -> full path: "assets/menu/uuid.jpg"
+            img_path = f"assets/menu/{item['image']}"
+            img = ft.Image(
+                src=img_path,
+                width=60,
+                height=60,
+                fit=ft.ImageFit.COVER,
+                border_radius=10
+            )
+            image_cache[item_id] = img
+            return img
+        elif item.get("image_type") == "base64" and item.get("image"):
+            # Fallback for old base64 data
+            img = ft.Image(
+                src_base64=item["image"],
+                width=60,
+                height=60,
+                fit=ft.ImageFit.COVER,
+                border_radius=10
+            )
+            image_cache[item_id] = img
+            return img
+        
+        return None
+    except Exception as e:
+        print(f"Error loading image for item {item.get('id')}: {e}")
+        return None
 
 def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart, goto_profile, goto_history, goto_logout):
     menu_list = ft.ListView(expand=True, spacing=10, padding=10)
@@ -40,6 +83,9 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
         if search:
             items = [item for item in items if search.lower() in item["name"].lower() or search.lower() in item["description"].lower()]
 
+        # Limit to 50 items for performance
+        items = items[:50]
+
         for item in items:
             qty = ft.TextField(
                 value="1", 
@@ -51,10 +97,34 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
                 focused_border_color=ACCENT_PRIMARY
             )
 
+            # Image widget (loads in background)
+            image_widget = ft.Container(
+                content=ft.Icon(ft.Icons.RESTAURANT, size=50, color="grey"),
+                width=80,
+                height=80,
+                alignment=ft.alignment.center
+            )
+
+            def load_binary_image(item_data=item, img_widget=image_widget):
+                """Load image from file/base64 in background"""
+                try:
+                    real_img = load_image_from_binary(item_data)
+                    if real_img:
+                        img_widget.content = real_img
+                        # Small delay before update to batch changes
+                        import time
+                        time.sleep(0.05)
+                        page.update()
+                except:
+                    pass
+
+            # Load image in background thread (non-blocking)
+            threading.Thread(target=load_binary_image, daemon=True).start()
+
             menu_list.controls.append(
                 ft.Container(
                     content=ft.Row([
-                        create_image_widget(item, 80, 80),
+                        image_widget,
                         ft.Column([
                             ft.Text(item["name"], size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
                             ft.Text(item["description"], size=12, color=TEXT_LIGHT),
@@ -75,6 +145,7 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
                     border_radius=10
                 )
             )
+        # Update once after all items added
         page.update()
 
     search_field = ft.TextField(
