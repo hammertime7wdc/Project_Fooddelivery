@@ -2,6 +2,7 @@ import flet as ft
 import shutil
 import os
 import uuid
+import imghdr
 from datetime import datetime
 from core.database import get_all_menu_items, create_menu_item, update_menu_item, delete_menu_item, get_all_orders, update_order_status
 from core.datetime_utils import format_datetime_philippine
@@ -225,9 +226,15 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             if file.size > 3145728:  # 3MB limit
                 show_snackbar(page, "Image size must be under 3MB")
                 return
-            if not file.name.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            if not file.name.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
                 show_snackbar(page, "Only JPG, PNG, GIF allowed")
                 return
+
+            detected_type = imghdr.what(file.path)
+            if detected_type not in ("jpeg", "png", "gif"):
+                show_snackbar(page, "Invalid image file")
+                return
+
             try:
                 # Generate unique filename
                 file_ext = os.path.splitext(file.name)[1]
@@ -254,7 +261,8 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 show_snackbar(page, "Image uploaded successfully!")
                 page.update()
             except Exception as ex:
-                show_snackbar(page, f"Error uploading image: {str(ex)}")
+                print(f"Upload error: {ex}")
+                show_snackbar(page, "Upload failed. Please try another image.")
 
     def save_item(e):
         nonlocal current_menu_filter

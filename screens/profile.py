@@ -3,6 +3,7 @@ import re
 import uuid
 import shutil
 import os
+import imghdr
 from core.auth import get_user_by_id, update_user_profile, change_password, validate_email, validate_password, validate_full_name, get_password_strength
 from utils import show_snackbar, create_profile_pic_widget, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
 
@@ -223,8 +224,13 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
             if file.size > 1048576:
                 show_snackbar(page, "Image size must be under 1MB")
                 return
-            if not file.name.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            if not file.name.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
                 show_snackbar(page, "Only JPG, PNG, GIF allowed")
+                return
+
+            detected_type = imghdr.what(file.path)
+            if detected_type not in ("jpeg", "png", "gif"):
+                show_snackbar(page, "Invalid image file")
                 return
             try:
                 # Generate unique filename for profile picture
@@ -253,7 +259,8 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 show_snackbar(page, "Profile picture uploaded!")
                 page.update()
             except Exception as ex:
-                show_snackbar(page, f"Error: {str(ex)}")
+                print(f"Profile upload error: {ex}")
+                show_snackbar(page, "Upload failed. Please try another image.")
 
     file_picker = ft.FilePicker(on_result=handle_pic_pick)
     page.overlay.append(file_picker)

@@ -1,6 +1,6 @@
 import flet as ft
 import threading
-from core.database import get_all_menu_items, get_categories
+from core.database import get_categories, get_menu_items_page
 from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
 
 # Image cache to avoid reloading
@@ -52,7 +52,6 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
     current_page = {"page": 1}
     items_per_page = 10
     total_pages = {"count": 1}
-    all_filtered_items = {"items": []}
     
     page_info_text = ft.Text("", size=13, color=TEXT_LIGHT, text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.W_500)
 
@@ -86,28 +85,22 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
             current_page["page"] = 1
             
         menu_list.controls.clear()
-        items = get_all_menu_items()
 
-        if category != "All":
-            items = [item for item in items if item.get("category") == category]
+        offset = (current_page["page"] - 1) * items_per_page
+        result = get_menu_items_page(category=category, search=search, limit=items_per_page, offset=offset)
+        items = result.get("items", [])
+        total = result.get("total", 0)
 
-        if search:
-            items = [item for item in items if search.lower() in item["name"].lower() or search.lower() in item["description"].lower()]
-
-        # Store all filtered items for pagination
-        all_filtered_items["items"] = items
-        
         # Calculate total pages
-        total_pages["count"] = max(1, (len(items) + items_per_page - 1) // items_per_page)
+        total_pages["count"] = max(1, (total + items_per_page - 1) // items_per_page)
         
         # Ensure current page is within bounds
         if current_page["page"] > total_pages["count"]:
             current_page["page"] = total_pages["count"]
-        
-        # Calculate pagination slice
-        start_idx = (current_page["page"] - 1) * items_per_page
-        end_idx = start_idx + items_per_page
-        items = items[start_idx:end_idx]
+            offset = (current_page["page"] - 1) * items_per_page
+            result = get_menu_items_page(category=category, search=search, limit=items_per_page, offset=offset)
+            items = result.get("items", [])
+            total = result.get("total", 0)
         
         # Update page info
         page_info_text.value = f"{current_page['page']} / {total_pages['count']}"
