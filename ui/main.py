@@ -9,6 +9,7 @@ from core.database import init_database
 from core.session_manager import SessionManager
 from utils import show_snackbar
 from screens.login import login_screen
+from screens.splash import splash_screen
 from screens.signup import signup_screen
 from screens.reset_password import reset_password_screen
 from screens.browse_menu import browse_menu_screen
@@ -21,11 +22,21 @@ from screens.admin_dashboard import admin_dashboard_screen
 
 def main(page: ft.Page):
     page.title = "Food Delivery App"
-    page.theme_mode = ft.ThemeMode.DARK
-    page.bgcolor = "#6B0113"
+    page.theme_mode = ft.ThemeMode.LIGHT
+    page.bgcolor = "#EBE1D1"
     page.padding = 0
     page.window_width = 412
     page.window_height = 917
+    
+    # Set theme for dropdown menus
+    page.theme = ft.Theme(
+        color_scheme=ft.ColorScheme(
+            primary="#E9762B",
+            on_primary="#000000",
+            surface="#EBE1D1",
+            on_surface="#000000",
+        )
+    )
 
     init_database()
 
@@ -126,6 +137,9 @@ def main(page: ft.Page):
             cause=cause,
         )
 
+    def goto_splash(e=None):
+        navigate_to(splash_screen, goto_login=goto_login)
+
     def goto_signup(e=None):
         navigate_to(signup_screen, goto_login=goto_login)
 
@@ -203,7 +217,7 @@ def main(page: ft.Page):
     
     page.on_close = on_page_close
     
-    # Start with login
-    goto_login(cause=None)
+    # Start with splash
+    goto_splash()
 
 ft.app(target=main)
