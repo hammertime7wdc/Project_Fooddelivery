@@ -1,6 +1,6 @@
 import flet as ft
 from core.database import create_order
-from utils import show_snackbar, TEXT_LIGHT, TEXT_DARK, FIELD_BG, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
+from utils import show_snackbar, TEXT_LIGHT, TEXT_DARK, FIELD_BG, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_confirmation):
     cart_list = ft.Column(scroll=ft.ScrollMode.AUTO)
@@ -11,10 +11,12 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         value=current_user["user"]["full_name"], 
         width=300,
         bgcolor=FIELD_BG,
-        color=TEXT_DARK,
+        color="#000000",
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        border_radius=10,
+        label_style=ft.TextStyle(color=DARK_GREEN),
+        text_style=ft.TextStyle(color="#000000")
     )
     address_field = ft.TextField(
         label="Delivery Address",
@@ -22,10 +24,12 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         value=current_user["user"].get("address", ""), 
         width=300,
         bgcolor=FIELD_BG,
-        color=TEXT_DARK,
+        color="#000000",
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        border_radius=10,
+        label_style=ft.TextStyle(color=DARK_GREEN),
+        text_style=ft.TextStyle(color="#000000")
     )
     contact_field = ft.TextField(
         label="Contact Number",
@@ -34,10 +38,12 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         width=300,
         keyboard_type=ft.KeyboardType.PHONE,
         bgcolor=FIELD_BG,
-        color=TEXT_DARK,
+        color="#000000",
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        border_radius=10,
+        label_style=ft.TextStyle(color=DARK_GREEN),
+        text_style=ft.TextStyle(color="#000000")
     )
     
     # Wrap fields in containers with shadows for depth
@@ -79,8 +85,8 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
             total += item["price"] * item["quantity"]
             cart_list.controls.append(
                 ft.Row([
-                    ft.Text(f"{item['name']} x {item['quantity']}", expand=True, color=TEXT_LIGHT),
-                    ft.Text(f"₱{item['price'] * item['quantity']:.2f}", color=TEXT_LIGHT),
+                    ft.Text(f"{item['name']} x {item['quantity']}", expand=True, color=TEXT_DARK),
+                    ft.Text(f"₱{item['price'] * item['quantity']:.2f}", color=ACCENT_PRIMARY),
                     ft.IconButton(icon=ft.Icons.DELETE, icon_color="red", on_click=lambda e, i=idx: remove_item(i))
                 ])
             )
@@ -120,10 +126,13 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         "Place Order",
         width=280,
         height=45,
-        bgcolor=ACCENT_PRIMARY,
-        color=TEXT_LIGHT,
+        bgcolor=ACCENT_DARK,
+        color=CREAM,
         on_click=place_order,
-        elevation=8
+        elevation=8,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=10)
+        )
     )
 
     return ft.Container(
@@ -131,9 +140,9 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
             [
                 ft.Container(height=10),
                 
-                ft.TextButton("← back to menu", on_click=goto_menu, style=ft.ButtonStyle(color=TEXT_LIGHT)),
+                ft.TextButton("← back to menu", on_click=goto_menu, style=ft.ButtonStyle(color=DARK_GREEN)),
 
-                ft.Text("Cart Items", size=20, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                ft.Text("Cart Items", size=20, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
                 
                 ft.Container(height=10),
                 
@@ -141,7 +150,7 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
 
                 ft.Container(height=20),
                 
-                ft.Text("Delivery Information", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                ft.Text("Delivery Information", size=16, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
                 
                 ft.Container(height=10),
 
@@ -153,7 +162,7 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
 
                 ft.Container(height=20),
 
-                ft.Text(f"Total: ₱{total:.2f}", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                ft.Text(f"Total: ₱{total:.2f}", size=18, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
 
                 ft.Container(height=10),
 
@@ -165,9 +174,5 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         ),
         expand=True,
         padding=20,
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#9A031E", "#6B0113"]
-        )
+        bgcolor=FIELD_BG
     )

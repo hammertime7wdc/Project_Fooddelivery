@@ -1,5 +1,5 @@
 import flet as ft
-from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
+from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
     email_field = ft.TextField(
@@ -10,7 +10,9 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        border_radius=10,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        label_style=ft.TextStyle(color=TEXT_DARK)
     )
 
     def reset_click(e):
@@ -32,8 +34,8 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
                     fit=ft.ImageFit.CONTAIN
                 ),
 
-                ft.Text("RESET PASSWORD", size=28, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                ft.Text("Enter your email to reset password", size=14, color=TEXT_LIGHT),
+                ft.Text("RESET PASSWORD", size=28, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                ft.Text("Enter your email to reset password", size=14, color=DARK_GREEN),
                 ft.Container(height=15),
 
                 email_field,
@@ -45,24 +47,20 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
                     width=250,
                     height=45,
                     bgcolor=ACCENT_DARK,
-                    color=TEXT_LIGHT,
+                    color=CREAM,
                     on_click=reset_click
                 ),
 
                 ft.TextButton(
                     "← Back to login",
                     on_click=goto_login,
-                    style=ft.ButtonStyle(color=TEXT_LIGHT)
+                    style=ft.ButtonStyle(color=DARK_GREEN)
                 )
             ],
             scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER
         ),
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#9A031E", "#6B0113"]
-        ),
+        bgcolor=CREAM,
         expand=True,
         padding=20
     )

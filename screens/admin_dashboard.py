@@ -7,7 +7,7 @@ from core.auth import (
 )
 from core.database import get_all_orders, update_order_status
 from core.datetime_utils import format_datetime_philippine
-from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY
+from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, CREAM, DARK_GREEN
 
 def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
     users_list = ft.ListView(spacing=10, padding=10, height=300)
@@ -18,18 +18,18 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     search_query = ""
 
     # Password strength indicator
-    password_strength_text = ft.Text("", size=12, color="grey")
-    password_strength_bar = ft.ProgressBar(width=250, value=0, color="grey", bgcolor="#333")
+    password_strength_text = ft.Text("", size=12, color=TEXT_DARK)
+    password_strength_bar = ft.ProgressBar(width=250, value=0, color=DARK_GREEN, bgcolor=FIELD_BG)
     
     # Password requirements info box
     password_requirements = ft.Container(
         content=ft.Column([
-            ft.Icon(ft.Icons.SECURITY, color=TEXT_LIGHT, size=20),
+            ft.Icon(ft.Icons.SECURITY, color=TEXT_DARK, size=20),
             ft.Text(
                 "Password Requirements:",
                 size=12,
                 weight=ft.FontWeight.BOLD,
-                color=TEXT_LIGHT
+                color=TEXT_DARK
             ),
             ft.Text(
                 "• At least 8 characters\n"
@@ -38,17 +38,13 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 "• One number (0-9)\n"
                 "• One special character (!@#$%...)",
                 size=10,
-                color=TEXT_LIGHT
+                color=TEXT_DARK
             )
         ]),
         padding=10,
-        border=ft.border.all(1, "white"),
+        border=ft.border.all(1, FIELD_BORDER),
         border_radius=10,
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#6B0113", ACCENT_DARK]
-        ),
+        bgcolor=FIELD_BG,
         width=250
     )
 
@@ -137,6 +133,8 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        hint_style=ft.TextStyle(color=TEXT_DARK),
         on_change=lambda e: validate_email_field()
     )
     
@@ -149,6 +147,8 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        hint_style=ft.TextStyle(color=TEXT_DARK),
         on_change=lambda e: update_password_strength()
     )
     
@@ -159,6 +159,8 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        hint_style=ft.TextStyle(color=TEXT_DARK),
         on_change=lambda e: validate_name_field()
     )
     
@@ -173,7 +175,9 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY
+        focused_border_color=ACCENT_PRIMARY,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        label_style=ft.TextStyle(color=TEXT_DARK)
     )
 
     # User filter components
@@ -185,37 +189,39 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
         prefix_icon=ft.Icons.SEARCH,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        hint_style=ft.TextStyle(color=TEXT_DARK),
         on_change=lambda e: on_search_change(e)
     )
 
     role_filter_all_btn = ft.ElevatedButton(
         "All Roles",
         bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
+        color=CREAM,
         on_click=lambda e: filter_users_by_role("all"),
         icon=ft.Icons.PEOPLE
     )
     
     role_filter_customer_btn = ft.ElevatedButton(
         "Customers",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: filter_users_by_role("customer"),
         icon=ft.Icons.PERSON
     )
     
     role_filter_owner_btn = ft.ElevatedButton(
         "Owners",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: filter_users_by_role("owner"),
         icon=ft.Icons.STORE
     )
     
     role_filter_admin_btn = ft.ElevatedButton(
         "Admins",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: filter_users_by_role("admin"),
         icon=ft.Icons.ADMIN_PANEL_SETTINGS
     )
@@ -223,31 +229,31 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     status_filter_all_btn = ft.ElevatedButton(
         "All Status",
         bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
+        color=CREAM,
         on_click=lambda e: filter_users_by_status("all"),
         icon=ft.Icons.LIST
     )
     
     status_filter_active_btn = ft.ElevatedButton(
         "Active",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: filter_users_by_status("active"),
         icon=ft.Icons.CHECK_CIRCLE
     )
     
     status_filter_disabled_btn = ft.ElevatedButton(
         "Disabled",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: filter_users_by_status("disabled"),
         icon=ft.Icons.BLOCK
     )
     
     status_filter_locked_btn = ft.ElevatedButton(
         "Locked",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: filter_users_by_status("locked"),
         icon=ft.Icons.LOCK
     )
@@ -341,7 +347,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         count_text = ft.Text(
             f"Showing {len(filtered_users)} of {len(all_users)} user(s)",
             size=14,
-            color="grey",
+            color=TEXT_DARK,
             italic=True
         )
         users_list.controls.append(count_text)
@@ -352,7 +358,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                     content=ft.Text(
                         "No users found matching the filters.",
                         size=16,
-                        color="grey",
+                        color=TEXT_DARK,
                         text_align=ft.TextAlign.CENTER
                     ),
                     padding=20,
@@ -416,15 +422,15 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 ft.Container(
                     content=ft.Row([
                         ft.Column([
-                            ft.Text(user["full_name"], size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                            ft.Text(f"{user['email']} ({user['role']})", size=12, color=TEXT_LIGHT),
-                            ft.Text(f"Status: {status_text}", size=11, color=status_color),
-                            ft.Text(f"Last login: {last_login}", size=10, color="grey"),
-                            ft.Text(f"Created: {datetime.fromisoformat(user['created_at']).strftime('%b %d, %Y')}", size=10, color="grey")
+                            ft.Text(user["full_name"], size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                            ft.Text(f"{user['email']} ({user['role']})", size=12, color=TEXT_DARK),
+                            ft.Text(f"Status: {status_text}", size=11, color=status_color if status_color != TEXT_LIGHT else TEXT_DARK),
+                            ft.Text(f"Last login: {last_login}", size=10, color=TEXT_DARK),
+                            ft.Text(f"Created: {datetime.fromisoformat(user['created_at']).strftime('%b %d, %Y')}", size=10, color=TEXT_DARK)
                         ], expand=True),
                         ft.IconButton(
                             icon=ft.Icons.BLOCK if user["is_active"] else ft.Icons.CHECK_CIRCLE,
-                            icon_color=TEXT_LIGHT,
+                            icon_color=ACCENT_DARK,
                             on_click=toggle_user,
                             tooltip="Disable User" if user["is_active"] else "Enable User"
                         ),
@@ -436,8 +442,9 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                         )
                     ]),
                     padding=10,
-                    border=ft.border.all(1, "black"),
-                    border_radius=10
+                    border=ft.border.all(1, FIELD_BORDER),
+                    border_radius=10,
+                    bgcolor=FIELD_BG
                 )
             )
         page.update()
@@ -514,47 +521,47 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     filter_all_btn = ft.ElevatedButton(
         "All Orders",
         bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
+        color=CREAM,
         on_click=lambda e: load_orders("all"),
         icon=ft.Icons.LIST
     )
     
     filter_placed_btn = ft.ElevatedButton(
         "Placed",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("placed"),
         icon=ft.Icons.SHOPPING_BAG
     )
     
     filter_preparing_btn = ft.ElevatedButton(
         "Preparing",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("preparing"),
         icon=ft.Icons.RESTAURANT
     )
     
     filter_delivery_btn = ft.ElevatedButton(
         "Out for Delivery",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("out for delivery"),
         icon=ft.Icons.LOCAL_SHIPPING
     )
     
     filter_delivered_btn = ft.ElevatedButton(
         "Delivered",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("delivered"),
         icon=ft.Icons.CHECK_CIRCLE
     )
     
     filter_cancelled_btn = ft.ElevatedButton(
         "Cancelled",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("cancelled"),
         icon=ft.Icons.CANCEL
     )
@@ -593,7 +600,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         count_text = ft.Text(
             f"Showing {len(orders)} order(s)" + (f" with status '{filter_status}'" if filter_status != "all" else ""),
             size=14,
-            color="grey",
+            color=TEXT_DARK,
             italic=True
         )
         orders_list.controls.append(count_text)
@@ -604,7 +611,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                     content=ft.Text(
                         "No orders found with this status.",
                         size=16,
-                        color="grey",
+                        color=TEXT_DARK,
                         text_align=ft.TextAlign.CENTER
                     ),
                     padding=20,
@@ -622,28 +629,32 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 on_change=lambda e, oid=order['id']: on_status_change(e, oid),
                 bgcolor=FIELD_BG,
                 color=TEXT_DARK,
-                border_color=FIELD_BORDER
+                border_color=FIELD_BORDER,
+                focused_border_color=ACCENT_PRIMARY
             )
             orders_list.controls.append(
                 ft.Card(
-                    elevation=4,
+                    elevation=2,
                     content=ft.Container(
                         padding=15,
+                        bgcolor=FIELD_BG,
+                        border=ft.border.all(1, FIELD_BORDER),
+                        border_radius=8,
                         content=ft.Column(
                             [
-                                ft.Text(f"Order #{order['customer_order_number']} - {order['customer_name']}", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                ft.Text(f"System ID: {order['id']}", size=12, color="grey"),
-                                ft.Text(f"Customer: {order['customer_name']}", size=14, color="grey"),
-                                ft.Text(f"Date: {formatted_date}", size=14, color="grey"),
-                                ft.Text(f"Status: ", size=14, color="grey"),
+                                ft.Text(f"Order #{order['customer_order_number']} - {order['customer_name']}", size=18, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                                ft.Text(f"System ID: {order['id']}", size=12, color=TEXT_DARK),
+                                ft.Text(f"Customer: {order['customer_name']}", size=14, color=TEXT_DARK),
+                                ft.Text(f"Date: {formatted_date}", size=14, color=TEXT_DARK),
+                                ft.Text(f"Status: ", size=14, color=TEXT_DARK),
                                 status_dropdown,
-                                ft.Divider(height=10, color="transparent"),
-                                ft.Text("Items:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                ft.Text(items_str, size=13, color=TEXT_LIGHT),
-                                ft.Divider(height=10, color="transparent"),
-                                ft.Text(f"Total: ₱{order['total_amount']:.2f}", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                ft.Text(f"Delivery Address: {order['delivery_address']}", size=13, color="grey"),
-                                ft.Text(f"Contact: {order['contact_number']}", size=13, color="grey")
+                                ft.Divider(height=10, color=FIELD_BORDER),
+                                ft.Text("Items:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                                ft.Text(items_str, size=13, color=TEXT_DARK),
+                                ft.Divider(height=10, color=FIELD_BORDER),
+                                ft.Text(f"Total: ₱{order['total_amount']:.2f}", size=16, weight=ft.FontWeight.BOLD, color=ACCENT_PRIMARY),
+                                ft.Text(f"Delivery Address: {order['delivery_address']}", size=13, color=TEXT_DARK),
+                                ft.Text(f"Contact: {order['contact_number']}", size=13, color=TEXT_DARK)
                             ],
                             spacing=5,
                             horizontal_alignment=ft.CrossAxisAlignment.START
@@ -665,18 +676,15 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             [
                 ft.Container(
                     content=ft.Row([
-                        ft.Text("Admin Dashboard", size=20, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT, expand=True),
+                        ft.Text("Admin Dashboard", size=20, weight=ft.FontWeight.BOLD, color=CREAM, expand=True),
                         ft.Row([
-                            ft.IconButton(icon=ft.Icons.PERSON, icon_color=TEXT_LIGHT, on_click=goto_profile, tooltip="Profile"),
-                            ft.IconButton(icon=ft.Icons.LOGOUT, icon_color=TEXT_LIGHT, on_click=goto_logout, tooltip="Logout")
+                            ft.IconButton(icon=ft.Icons.PERSON, icon_color=CREAM, on_click=goto_profile, tooltip="Profile"),
+                            ft.IconButton(icon=ft.Icons.LOGOUT, icon_color=CREAM, on_click=goto_logout, tooltip="Logout")
                         ], tight=True)
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_center,
-                        end=ft.alignment.bottom_center,
-                        colors=["#6B0113", ACCENT_DARK]
-                    ),
-                    padding=15
+                    bgcolor=ACCENT_PRIMARY,
+                    padding=15,
+                    border_radius=8
                 ),
                 ft.Tabs(
                     selected_index=0,
@@ -687,10 +695,10 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                             text="Users",
                             content=ft.Column(
                                 [
-                                    ft.Text("User Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                    ft.Text("User Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                     ft.Container(
                                         content=ft.Column([
-                                            ft.Text("Create New User", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                            ft.Text("Create New User", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                             new_email,
                                             email_error,
                                             ft.Container(height=5),
@@ -707,26 +715,23 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                             ft.ElevatedButton(
                                                 "Add User", 
                                                 bgcolor=ACCENT_DARK, 
-                                                color=TEXT_LIGHT, 
+                                                color=CREAM, 
                                                 on_click=add_user,
                                                 icon=ft.Icons.PERSON_ADD
                                             )
                                         ]),
                                         padding=15,
-                                        gradient=ft.LinearGradient(
-                                            begin=ft.alignment.top_center,
-                                            end=ft.alignment.bottom_center,
-                                            colors=["#9A031E", "#6B0113"]
-                                        ),
+                                        bgcolor=FIELD_BG,
+                                        border=ft.border.all(1, FIELD_BORDER),
                                         border_radius=10
                                     ),
                                     ft.Container(height=10),
-                                    ft.Text("Filter Users", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                    ft.Text("Filter Users", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                     ft.Container(
                                         content=ft.Column([
                                             search_field,
                                             ft.Container(height=10),
-                                            ft.Text("Filter by Role:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                            ft.Text("Filter by Role:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                             ft.Row([
                                                 role_filter_all_btn,
                                                 role_filter_customer_btn,
@@ -743,11 +748,12 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                             ], wrap=True, spacing=5)
                                         ]),
                                         padding=15,
-                                        border=ft.border.all(1, "white"),
+                                        border=ft.border.all(1, FIELD_BORDER),
                                         border_radius=10,
-                                        margin=ft.margin.only(bottom=10)
+                                        margin=ft.margin.only(bottom=10),
+                                        bgcolor=FIELD_BG
                                     ),
-                                    ft.Text("All Users", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                    ft.Text("All Users", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                     users_list
                                 ],
                                 scroll=ft.ScrollMode.AUTO
@@ -757,10 +763,10 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                             text="Orders",
                             content=ft.Column(
                                 [
-                                    ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                    ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                     ft.Container(
                                         content=ft.Column([
-                                            ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                            ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                             ft.Row([
                                                 filter_all_btn,
                                                 filter_placed_btn,
@@ -773,9 +779,10 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                             ], wrap=True, spacing=5)
                                         ]),
                                         padding=15,
-                                        border=ft.border.all(1, "white"),
+                                        border=ft.border.all(1, FIELD_BORDER),
                                         border_radius=10,
-                                        margin=ft.margin.only(bottom=10)
+                                        margin=ft.margin.only(bottom=10),
+                                        bgcolor=FIELD_BG
                                     ),
                                     orders_list
                                 ],
@@ -788,9 +795,5 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         ),
         expand=True,
         padding=10,
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#9A031E", "#6B0113"]
-        )
+        bgcolor=CREAM
     )

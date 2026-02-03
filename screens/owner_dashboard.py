@@ -6,7 +6,18 @@ import imghdr
 from datetime import datetime
 from core.database import get_all_menu_items, create_menu_item, update_menu_item, delete_menu_item, get_all_orders, update_order_status
 from core.datetime_utils import format_datetime_philippine
-from utils import show_snackbar, create_image_widget, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY
+from utils import (
+    show_snackbar,
+    create_image_widget,
+    TEXT_LIGHT,
+    ACCENT_DARK,
+    FIELD_BG,
+    TEXT_DARK,
+    FIELD_BORDER,
+    ACCENT_PRIMARY,
+    CREAM,
+    DARK_GREEN,
+)
 
 def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
     # Menu filter functionality
@@ -17,47 +28,47 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     menu_filter_all_btn = ft.ElevatedButton(
         "All",
         bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
+        color=CREAM,
         on_click=lambda e: load_menu("All"),
         icon=ft.Icons.RESTAURANT_MENU
     )
     
     menu_filter_appetizers_btn = ft.ElevatedButton(
         "Appetizers",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_menu("Appetizers"),
         icon=ft.Icons.RESTAURANT
     )
     
     menu_filter_mains_btn = ft.ElevatedButton(
         "Mains",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_menu("Mains"),
         icon=ft.Icons.DINNER_DINING
     )
     
     menu_filter_desserts_btn = ft.ElevatedButton(
         "Desserts",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_menu("Desserts"),
         icon=ft.Icons.CAKE
     )
     
     menu_filter_drinks_btn = ft.ElevatedButton(
         "Drinks",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_menu("Drinks"),
         icon=ft.Icons.LOCAL_BAR
     )
     
     menu_filter_other_btn = ft.ElevatedButton(
         "Other",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_menu("Other"),
         icon=ft.Icons.MORE_HORIZ
     )
@@ -77,7 +88,7 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             if filter_name == active_filter:
                 button.bgcolor = ACCENT_DARK
             else:
-                button.bgcolor = "#555"
+                button.bgcolor = DARK_GREEN
         
         page.update()
 
@@ -121,12 +132,13 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     
     # Image upload
     image_preview = ft.Container(
-        content=ft.Icon(ft.Icons.IMAGE, size=100, color="grey"),
+        content=ft.Icon(ft.Icons.IMAGE, size=100, color=TEXT_DARK),
         width=150,
         height=150,
-        border=ft.border.all(2, "grey"),
+        border=ft.border.all(2, FIELD_BORDER),
         border_radius=10,
-        alignment=ft.alignment.center
+        alignment=ft.alignment.center,
+        bgcolor=FIELD_BG
     )
     
     uploaded_image = {"data": None, "type": "emoji"}
@@ -179,7 +191,7 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         count_text = ft.Text(
             f"Showing {len(items)} item(s)" + (f" in category '{filter_category}'" if filter_category != "All" else ""),
             size=14,
-            color="grey",
+            color=TEXT_DARK,
             italic=True
         )
         menu_list.controls.append(count_text)
@@ -190,7 +202,7 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                     content=ft.Text(
                         "No items found in this category.",
                         size=16,
-                        color="grey",
+                        color=TEXT_DARK,
                         text_align=ft.TextAlign.CENTER
                     ),
                     padding=20,
@@ -204,18 +216,19 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                     content=ft.Row([
                         create_image_widget(item, 70, 70),
                         ft.Column([
-                            ft.Text(item["name"], size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                            ft.Text(item["description"], size=12, color=TEXT_LIGHT),
-                            ft.Text(f"₱{item['price']:.2f}", size=14, color=TEXT_LIGHT),
-                            ft.Text(f"Category: {item.get('category', 'Other')}", size=11, color="grey", italic=True)
+                            ft.Text(item["name"], size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                            ft.Text(item["description"], size=12, color=TEXT_DARK),
+                            ft.Text(f"₱{item['price']:.2f}", size=14, color=ACCENT_PRIMARY, weight=ft.FontWeight.BOLD),
+                            ft.Text(f"Category: {item.get('category', 'Other')}", size=11, color=TEXT_DARK, italic=True)
                         ], expand=True),
 
-                        ft.IconButton(icon=ft.Icons.EDIT, icon_color=TEXT_LIGHT, on_click=lambda e, item=item: edit_item(item)),
+                        ft.IconButton(icon=ft.Icons.EDIT, icon_color=ACCENT_DARK, on_click=lambda e, item=item: edit_item(item)),
                         ft.IconButton(icon=ft.Icons.DELETE, icon_color="red", on_click=lambda e, id=item["id"]: delete_item(id))
                     ]),
                     padding=10,
-                    border=ft.border.all(1, "black"),
-                    border_radius=10
+                    border=ft.border.all(1, FIELD_BORDER),
+                    border_radius=10,
+                    bgcolor=FIELD_BG
                 )
             )
         page.update()
@@ -328,19 +341,19 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     load_menu()
 
     form_container.content = ft.Column([
-        ft.Text("Menu Item Form", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+        ft.Text("Menu Item Form", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
         name_field,
         desc_field,
         price_field,
         category_dropdown,
         ft.Container(height=10),
-        ft.Text("Upload Image:", size=14, color=TEXT_LIGHT),
+        ft.Text("Upload Image:", size=14, color=TEXT_DARK),
         image_preview,
         ft.ElevatedButton(
             "Choose Image",
             icon=ft.Icons.UPLOAD_FILE,
             bgcolor=ACCENT_DARK,
-            color=TEXT_LIGHT,
+            color=CREAM,
             on_click=lambda _: file_picker.pick_files(
                 allowed_extensions=["jpg", "jpeg", "png", "gif"],
                 dialog_title="Select Food Image"
@@ -351,12 +364,12 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             "Save Item",
             width=300,
             bgcolor=ACCENT_DARK,
-            color=TEXT_LIGHT,
+            color=CREAM,
             on_click=save_item
         )
     ])
     form_container.padding = 15
-    form_container.border = ft.border.all(2, "black")
+    form_container.border = ft.border.all(2, FIELD_BORDER)
     form_container.border_radius = 10
 
     # Orders tab content with filter functionality
@@ -367,47 +380,47 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     filter_all_btn = ft.ElevatedButton(
         "All Orders",
         bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
+        color=CREAM,
         on_click=lambda e: load_orders("all"),
         icon=ft.Icons.LIST
     )
     
     filter_placed_btn = ft.ElevatedButton(
         "Placed",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("placed"),
         icon=ft.Icons.SHOPPING_BAG
     )
     
     filter_preparing_btn = ft.ElevatedButton(
         "Preparing",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("preparing"),
         icon=ft.Icons.RESTAURANT
     )
     
     filter_delivery_btn = ft.ElevatedButton(
         "Out for Delivery",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("out for delivery"),
         icon=ft.Icons.LOCAL_SHIPPING
     )
     
     filter_delivered_btn = ft.ElevatedButton(
         "Delivered",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("delivered"),
         icon=ft.Icons.CHECK_CIRCLE
     )
     
     filter_cancelled_btn = ft.ElevatedButton(
         "Cancelled",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
+        bgcolor=DARK_GREEN,
+        color=CREAM,
         on_click=lambda e: load_orders("cancelled"),
         icon=ft.Icons.CANCEL
     )
@@ -427,7 +440,7 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             if filter_name == active_filter:
                 button.bgcolor = ACCENT_DARK
             else:
-                button.bgcolor = "#555"
+                button.bgcolor = DARK_GREEN
         
         page.update()
 
@@ -449,7 +462,7 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         count_text = ft.Text(
             f"Showing {len(orders)} order(s)" + (f" with status '{filter_status}'" if filter_status != "all" else ""),
             size=14,
-            color="grey",
+            color=TEXT_DARK,
             italic=True
         )
         orders_list.controls.append(count_text)
@@ -460,7 +473,7 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                     content=ft.Text(
                         "No orders found with this status.",
                         size=16,
-                        color="grey",
+                        color=TEXT_DARK,
                         text_align=ft.TextAlign.CENTER
                     ),
                     padding=20,
@@ -478,28 +491,32 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                 on_change=lambda e, oid=order['id']: on_status_change(e, oid),
                 bgcolor=FIELD_BG,
                 color=TEXT_DARK,
-                border_color=FIELD_BORDER
+                border_color=FIELD_BORDER,
+                focused_border_color=ACCENT_PRIMARY
             )
             orders_list.controls.append(
                 ft.Card(
-                    elevation=4,
+                    elevation=2,
                     content=ft.Container(
                         padding=15,
+                        bgcolor=FIELD_BG,
+                        border=ft.border.all(1, FIELD_BORDER),
+                        border_radius=8,
                         content=ft.Column(
                             [
-                                ft.Text(f"Order #{order['customer_order_number']} - {order['customer_name']}", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                ft.Text(f"System ID: {order['id']}", size=12, color="grey"),
-                                ft.Text(f"Customer: {order['customer_name']}", size=14, color="grey"),
-                                ft.Text(f"Date: {formatted_date}", size=14, color="grey"),
-                                ft.Text(f"Status: ", size=14, color="grey"),
+                                ft.Text(f"Order #{order['customer_order_number']} - {order['customer_name']}", size=18, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                                ft.Text(f"System ID: {order['id']}", size=12, color=TEXT_DARK),
+                                ft.Text(f"Customer: {order['customer_name']}", size=14, color=TEXT_DARK),
+                                ft.Text(f"Date: {formatted_date}", size=14, color=TEXT_DARK),
+                                ft.Text(f"Status: ", size=14, color=TEXT_DARK),
                                 status_dropdown,
-                                ft.Divider(height=10, color="transparent"),
-                                ft.Text("Items:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                ft.Text(items_str, size=13, color=TEXT_LIGHT),
-                                ft.Divider(height=10, color="transparent"),
-                                ft.Text(f"Total: ₱{order['total_amount']:.2f}", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                                ft.Text(f"Delivery Address: {order['delivery_address']}", size=13, color="grey"),
-                                ft.Text(f"Contact: {order['contact_number']}", size=13, color="grey")
+                                ft.Divider(height=10, color=FIELD_BORDER),
+                                ft.Text("Items:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                                ft.Text(items_str, size=13, color=TEXT_DARK),
+                                ft.Divider(height=10, color=FIELD_BORDER),
+                                ft.Text(f"Total: ₱{order['total_amount']:.2f}", size=16, weight=ft.FontWeight.BOLD, color=ACCENT_PRIMARY),
+                                ft.Text(f"Delivery Address: {order['delivery_address']}", size=13, color=TEXT_DARK),
+                                ft.Text(f"Contact: {order['contact_number']}", size=13, color=TEXT_DARK)
                             ],
                             spacing=5,
                             horizontal_alignment=ft.CrossAxisAlignment.START
@@ -521,18 +538,15 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
             [
                 ft.Container(
                     content=ft.Row([
-                        ft.Text("Restaurant Dashboard", size=20, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT, expand=True),
+                        ft.Text("Restaurant Dashboard", size=20, weight=ft.FontWeight.BOLD, color=CREAM, expand=True),
                         ft.Row([
-                            ft.IconButton(icon=ft.Icons.PERSON, icon_color=TEXT_LIGHT, on_click=goto_profile),
-                            ft.IconButton(icon=ft.Icons.LOGOUT, icon_color=TEXT_LIGHT, on_click=goto_logout)
+                            ft.IconButton(icon=ft.Icons.PERSON, icon_color=CREAM, on_click=goto_profile),
+                            ft.IconButton(icon=ft.Icons.LOGOUT, icon_color=CREAM, on_click=goto_logout)
                         ], tight=True)
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_center,
-                        end=ft.alignment.bottom_center,
-                        colors=["#6B0113", ACCENT_DARK]
-                    ),
-                    padding=15
+                    bgcolor=ACCENT_PRIMARY,
+                    padding=15,
+                    border_radius=8
                 ),
 
                 ft.Tabs(
@@ -545,10 +559,10 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                             content=ft.Container(
                                 content=ft.Column(
                                     [
-                                        ft.Text("Menu Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                        ft.Text("Menu Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                         ft.Container(
                                             content=ft.Column([
-                                                ft.Text("Filter by Category:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                                ft.Text("Filter by Category:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                                 ft.Row([
                                                     menu_filter_all_btn,
                                                     menu_filter_appetizers_btn,
@@ -561,18 +575,21 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                                 ], wrap=True, spacing=5)
                                             ]),
                                             padding=15,
-                                            border=ft.border.all(1, "white"),
+                                            border=ft.border.all(1, FIELD_BORDER),
                                             border_radius=10,
-                                            margin=ft.margin.only(bottom=10)
+                                            margin=ft.margin.only(bottom=10),
+                                            bgcolor=FIELD_BG
                                         ),
                                         menu_list,
-                                        ft.ElevatedButton("Add New Item +", width=350, bgcolor=ACCENT_DARK, color=TEXT_LIGHT, on_click=show_form),
+                                        ft.ElevatedButton("Add New Item +", width=350, bgcolor=ACCENT_DARK, color=CREAM, on_click=show_form),
                                         form_container
                                     ],
                                     scroll=ft.ScrollMode.AUTO,
                                     spacing=10
                                 ),
-                                expand=True
+                                expand=True,
+                                padding=10,
+                                bgcolor=CREAM
                             )
                         ),
                         ft.Tab(
@@ -580,10 +597,10 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                             content=ft.Container(
                                 content=ft.Column(
                                     [
-                                        ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                        ft.Text("Order Management", size=18, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                         ft.Container(
                                             content=ft.Column([
-                                                ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
+                                                ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                                                 ft.Row([
                                                     filter_all_btn,
                                                     filter_placed_btn,
@@ -596,16 +613,19 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                                 ], wrap=True, spacing=5)
                                             ]),
                                             padding=15,
-                                            border=ft.border.all(1, "white"),
+                                            border=ft.border.all(1, FIELD_BORDER),
                                             border_radius=10,
-                                            margin=ft.margin.only(bottom=10)
+                                            margin=ft.margin.only(bottom=10),
+                                            bgcolor=FIELD_BG
                                         ),
                                         orders_list
                                     ],
                                     scroll=ft.ScrollMode.AUTO,
                                     spacing=10
                                 ),
-                                expand=True
+                                expand=True,
+                                padding=10,
+                                bgcolor=CREAM
                             )
                         )
                     ]
@@ -614,9 +634,5 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         ),
         expand=True,
         padding=10,
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#9A031E", "#6B0113"]
-        )
+        bgcolor=CREAM
     )
