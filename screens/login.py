@@ -2,8 +2,9 @@ import flet as ft
 from datetime import datetime
 import threading
 import time
+import json
 from core.auth import authenticate_user, validate_email
-from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER
+from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, logout_message=None, session_timed_out=None, cause=None):
     # Determine what message to show
@@ -25,6 +26,39 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         page.overlay.append(snackbar)
         page.update()
     
+    # Load welcome messages from JSON
+    try:
+        with open("assets/login_messages.json", "r") as f:
+            messages_data = json.load(f)
+            welcome_messages = messages_data["messages"]
+    except:
+        welcome_messages = ["WELCOME BACK!"]
+    
+    # Create welcome text component
+    welcome_text = ft.Text(welcome_messages[0], size=14, color=DARK_GREEN, weight=ft.FontWeight.BOLD, opacity=1)
+    
+    # Rotating message function with fade effect
+    message_index = [0]
+    def rotate_message():
+        while True:
+            time.sleep(3.5)
+            # Fade out
+            for i in range(10):
+                welcome_text.opacity = 1 - (i / 10)
+                page.update()
+                time.sleep(0.05)
+            # Change message
+            message_index[0] = (message_index[0] + 1) % len(welcome_messages)
+            welcome_text.value = welcome_messages[message_index[0]]
+            # Fade in
+            for i in range(10):
+                welcome_text.opacity = i / 10
+                page.update()
+                time.sleep(0.05)
+    
+    # Start rotation thread
+    threading.Thread(target=rotate_message, daemon=True).start()
+    
     # Email field with error state
     email_field = ft.TextField(
         label="Email",
@@ -33,8 +67,9 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        focused_border_color=ORANGE,
+        border_radius=10,
+        label_style=ft.TextStyle(color=DARK_GREEN)
     )
 
     # Password field with error state
@@ -47,8 +82,9 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         bgcolor=FIELD_BG,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY,
-        border_radius=10
+        focused_border_color=ORANGE,
+        border_radius=10,
+        label_style=ft.TextStyle(color=DARK_GREEN)
     )
     
     # Wrap fields in containers with shadows for depth
@@ -76,16 +112,16 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
     role_selection = ft.RadioGroup(
         content=ft.Column([
             ft.Row([
-                ft.Icon(ft.Icons.SHOPPING_BAG, color=TEXT_LIGHT, size=20),
-                ft.Radio(value="customer", label="Customer", label_style=ft.TextStyle(color=TEXT_LIGHT))
+                ft.Icon(ft.Icons.SHOPPING_BAG, color=DARK_GREEN, size=20),
+                ft.Radio(value="customer", label="Customer", label_style=ft.TextStyle(color=TEXT_DARK), fill_color=DARK_GREEN)
             ], spacing=10),
             ft.Row([
-                ft.Icon(ft.Icons.RESTAURANT, color=TEXT_LIGHT, size=20),
-                ft.Radio(value="owner", label="Restaurant Owner", label_style=ft.TextStyle(color=TEXT_LIGHT))
+                ft.Icon(ft.Icons.RESTAURANT, color=DARK_GREEN, size=20),
+                ft.Radio(value="owner", label="Restaurant Owner", label_style=ft.TextStyle(color=TEXT_DARK), fill_color=DARK_GREEN)
             ], spacing=10),
             ft.Row([
-                ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, color=TEXT_LIGHT, size=20),
-                ft.Radio(value="admin", label="Administrator", label_style=ft.TextStyle(color=TEXT_LIGHT))
+                ft.Icon(ft.Icons.ADMIN_PANEL_SETTINGS, color=DARK_GREEN, size=20),
+                ft.Radio(value="admin", label="Administrator", label_style=ft.TextStyle(color=TEXT_DARK), fill_color=DARK_GREEN)
             ], spacing=10)
         ], spacing=8),
         value="customer"
@@ -94,12 +130,12 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
     lockout_text_ref = ft.Ref[ft.Text]()
     lockout_container = ft.Container(
         content=ft.Column([
-            ft.Icon(ft.Icons.LOCK_CLOCK, color="red", size=40),
-            ft.Text("", ref=lockout_text_ref, color="red", size=16, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+            ft.Icon(ft.Icons.LOCK_CLOCK, color=DARK_GREEN, size=40),
+            ft.Text("", ref=lockout_text_ref, color=DARK_GREEN, size=16, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         alignment=ft.alignment.center,
         padding=10,
-        border=ft.border.all(2, "red"),
+        border=ft.border.all(2, DARK_GREEN),
         border_radius=10,
         width=300,
         visible=False
@@ -151,7 +187,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
             show_snackbar(page, "Please enter your password")
             return
 
-        user = authenticate_user(email_field.value, password_field.value, role_selection.value)
+        user = authenticate_user(email_field.value, password_field.value)
 
         if user is None:
             # Only highlight password field for security (don't reveal if email exists)
@@ -175,7 +211,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
     login_container = ft.Container(
         content=ft.Column(
             [
-                ft.Container(height=25),
+                ft.Container(height=20),
 
                 ft.Image(
                     src="assets/burger.PNG",
@@ -184,61 +220,76 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                     fit=ft.ImageFit.CONTAIN
                 ),
 
-                ft.Text("FOOD DELIVERY", size=30, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                ft.Text("WELCOME BACK!", size=16, color=TEXT_LIGHT),
+                ft.Container(height=15),
+                ft.Text("FOOD DELIVERY", size=28, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                welcome_text,
 
                 ft.Container(height=20),
-
-                email_container,
-                ft.Container(height=10),
-                password_container,
-                ft.Container(height=10),
-                lockout_container,
-
-                ft.Container(height=10),
 
                 ft.Container(
-                    content=ft.Column([
-                        ft.Text("Role Selection", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                        ft.Container(height=5),
-                        role_selection
-                    ]),
-                    padding=15,
-                    border=ft.border.all(1, "white30"),
-                    border_radius=10,
-                    gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_center,
-                        end=ft.alignment.bottom_center,
-                        colors=["#9A031E", "#6B0113"]
+                    content=ft.Column(
+                        [
+                            email_container,
+                            ft.Container(height=10),
+                            password_container,
+                            ft.Container(height=10),
+                            lockout_container,
+
+                            ft.Container(height=20),
+
+                            ft.ElevatedButton(
+                                "Log in",
+                                width=280,
+                                height=45,
+                                bgcolor=ACCENT_DARK,
+                                color=CREAM,
+                                on_click=login_click,
+                                elevation=4,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=8)
+                                )
+                            ),
+
+                            ft.Container(height=15),
+
+                            ft.Text(
+                                "— OR CONTINUE WITH —",
+                                size=12,
+                                color=DARK_GREEN,
+                                weight=ft.FontWeight.BOLD
+                            ),
+
+                            ft.Container(height=10),
+
+                            ft.ElevatedButton(
+                                "  Google",
+                                width=280,
+                                height=45,
+                                bgcolor=CREAM,
+                                color=DARK_GREEN,
+                                on_click=lambda e: page.snackbar.show("Google login coming soon"),
+                                elevation=2,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=8)
+                                )
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=0
                     ),
-                    width=300,
-                    shadow=ft.BoxShadow(
-                        spread_radius=1,
-                        blur_radius=8,
-                        color="black26",
-                        offset=ft.Offset(0, 2)
-                    )
+                    bgcolor=CREAM,
+                    border_radius=16,
+                    padding=30,
+                    width=350
                 ),
 
                 ft.Container(height=20),
-
-                ft.ElevatedButton(
-                    "Log in",
-                    width=280,
-                    height=45,
-                    bgcolor=ACCENT_PRIMARY,
-                    color=TEXT_LIGHT,
-                    on_click=login_click,
-                    elevation=8
-                ),
-
-                ft.Container(height=10),
 
                 ft.Container(
                     content=ft.Row(
                         [
-                            ft.Text("Don't have an account? ", color=TEXT_LIGHT),
-                            ft.Text("Sign Up", color=ACCENT_PRIMARY, weight=ft.FontWeight.BOLD)
+                            ft.Text("Don't have an account? ", color=TEXT_DARK),
+                            ft.Text("Sign Up", color=ACCENT_DARK, weight=ft.FontWeight.BOLD)
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
                     ),
@@ -248,18 +299,14 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                 ft.TextButton(
                     "Reset Password",
                     on_click=goto_reset,
-                    style=ft.ButtonStyle(color=TEXT_LIGHT)
+                    style=ft.ButtonStyle(color=DARK_GREEN)
                 )
             ],
             scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=0
         ),
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#9A031E", "#6B0113"]
-        ),
+        bgcolor=ORANGE,
         expand=True,
         padding=20
     )

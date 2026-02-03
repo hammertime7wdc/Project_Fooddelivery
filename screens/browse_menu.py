@@ -1,7 +1,7 @@
-import flet as ft
+﻿import flet as ft
 import threading
 import time
-from core.database import get_categories, get_menu_items_page
+from core.database import get_categories, get_menu_items_page, get_user_favorites, add_favorite, remove_favorite
 from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK
 
 # Image cache to avoid reloading
@@ -68,12 +68,12 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
             # Swipe right (previous page)
             if swipe_distance > min_swipe_distance and current_page["page"] > 1:
                 current_page["page"] -= 1
-                load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+                load_menu(category=selected_category["value"], search=search_field.value, reset_page=False)
             
             # Swipe left (next page)
             elif swipe_distance < -min_swipe_distance and current_page["page"] < total_pages["count"]:
                 current_page["page"] += 1
-                load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+                load_menu(category=selected_category["value"], search=search_field.value, reset_page=False)
     
     menu_list = ft.ListView(expand=True, spacing=10, padding=10)
     menu_list.on_pan = on_pan
@@ -81,8 +81,9 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
     # Selected category state for chips
     selected_category = {"value": "All"}
     
-    # Favorites state
-    favorites = set()
+    # Load favorites from database
+    user_id = current_user["user"]["id"]
+    favorites = set(get_user_favorites(user_id))
     
     page_info_text = ft.Text("", size=13, color=TEXT_DARK, text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.W_500)
 
@@ -148,13 +149,41 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
             menu_list.controls.clear()
 
             try:
-                offset = (current_page["page"] - 1) * items_per_page
-                result = get_menu_items_page(category=category, search=search, limit=items_per_page, offset=offset)
-                items = result.get("items", [])
-                total = result.get("total", 0)
-
-                # Calculate total pages
-                total_pages["count"] = max(1, (total + items_per_page - 1) // items_per_page)
+                # Handle Favorites category
+                if category == "❤️ Favorites":
+                    if not favorites:
+                        menu_list.controls.append(
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Icon(ft.Icons.FAVORITE_BORDER, size=80, color="grey"),
+                                    ft.Text("No favorites yet", size=20, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                                    ft.Text("Add items to your favorites", size=14, color="grey"),
+                                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                                padding=50,
+                                alignment=ft.alignment.center
+                            )
+                        )
+                        page.update()
+                        return
+                    
+                    # Get all items and filter by favorites
+                    all_items = []
+                    for fav_id in favorites:
+                        for item in get_menu_items_page(limit=1000, offset=0).get("items", []):
+                            if item["id"] == fav_id:
+                                all_items.append(item)
+                    
+                    items = all_items[((current_page["page"]-1)*items_per_page):((current_page["page"])*items_per_page)]
+                    total = len(all_items)
+                    total_pages["count"] = max(1, (total + items_per_page - 1) // items_per_page)
+                else:
+                    offset = (current_page["page"] - 1) * items_per_page
+                    result = get_menu_items_page(category=category, search=search, limit=items_per_page, offset=offset)
+                    items = result.get("items", [])
+                    total = result.get("total", 0)
+                    
+                    # Calculate total pages
+                    total_pages["count"] = max(1, (total + items_per_page - 1) // items_per_page)
                 
                 # Ensure current page is within bounds
                 if current_page["page"] > total_pages["count"]:
@@ -223,10 +252,12 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
                         def toggle(e):
                             if item_id_ref in favorites:
                                 favorites.remove(item_id_ref)
+                                remove_favorite(user_id, item_id_ref)
                                 fav_btn_ref.icon = ft.Icons.FAVORITE_BORDER
                                 fav_btn_ref.icon_color = "#BDBDBD"
                             else:
                                 favorites.add(item_id_ref)
+                                add_favorite(user_id, item_id_ref)
                                 fav_btn_ref.icon = ft.Icons.FAVORITE
                                 fav_btn_ref.icon_color = "#FF6B6B"
                             with ui_update_lock:
@@ -383,26 +414,26 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
 
     def goto_first_page(e):
         current_page["page"] = 1
-        load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+        load_menu(category=selected_category["value"], search=search_field.value, reset_page=False)
 
     def goto_prev_page(e):
         if current_page["page"] > 1:
             current_page["page"] -= 1
-            load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+            load_menu(category=selected_category["value"], search=search_field.value, reset_page=False)
 
     def goto_next_page(e):
         if current_page["page"] < total_pages["count"]:
             current_page["page"] += 1
-            load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+            load_menu(category=selected_category["value"], search=search_field.value, reset_page=False)
 
     def goto_last_page(e):
         current_page["page"] = total_pages["count"]
-        load_menu(category=category_dropdown.value, search=search_field.value, reset_page=False)
+        load_menu(category=selected_category["value"], search=search_field.value, reset_page=False)
 
     search_field = ft.TextField(
         hint_text="Search menu...", 
         width=300, 
-        on_change=lambda e: load_menu(category=category_dropdown.value, search=e.control.value, reset_page=True),
+        on_change=lambda e: load_menu(category=selected_category["value"], search=e.control.value, reset_page=True),
         bgcolor=FIELD_BG,
         color="#000000",
         border_color=FIELD_BORDER,
@@ -413,13 +444,12 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
 
     # Category chips
     def create_category_chips():
-        categories = ["All"] + get_categories()
+        categories = ["❤️ Favorites", "All"] + get_categories()
         chips = []
         
         def make_chip_click(cat):
             def on_click(e):
                 selected_category["value"] = cat
-                category_dropdown.value = cat
                 load_menu(category=cat, search=search_field.value, reset_page=True)
                 # Update chip styles
                 with ui_update_lock:
@@ -443,26 +473,6 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
         return ft.Row(chips, spacing=8, wrap=True, scroll=ft.ScrollMode.AUTO)
     
     category_chips = create_category_chips()
-    
-    category_dropdown = ft.Dropdown(
-        hint_text="Category",
-        width=300,
-        options=[ft.dropdown.Option(key=c, text=c) for c in get_categories()] + [ft.dropdown.Option(key="All", text="All")],
-        value="All",
-        on_change=lambda e: [
-            selected_category.update({"value": e.control.value}),
-            load_menu(category=e.control.value, search=search_field.value, reset_page=True)
-        ],
-        bgcolor=FIELD_BG,
-        color="#000000",
-        border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY,
-        hint_style=ft.TextStyle(color="#000000"),
-        text_style=ft.TextStyle(color="#000000"),
-        label_style=ft.TextStyle(color="#000000"),
-        fill_color="#EBE1D1",
-        focused_bgcolor="#EBE1D1"
-    )
     
     # Pagination controls - Simple clean design with swipe support
     swipe_hint = ft.Text(
@@ -547,7 +557,6 @@ def browse_menu_screen(page: ft.Page, current_user: dict, cart: list, goto_cart,
                 ),
 
                 search_field,
-                category_dropdown,
                 ft.Container(content=category_chips, padding=ft.padding.symmetric(horizontal=10, vertical=5)),
                 menu_list,
                 pagination_controls

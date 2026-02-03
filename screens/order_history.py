@@ -4,77 +4,161 @@ import threading
 import time
 from core.database import get_orders_by_customer, update_order_status
 from core.datetime_utils import format_datetime_philippine
-from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, FIELD_BG, TEXT_DARK, FIELD_BORDER
+from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, ACCENT_PRIMARY, FIELD_BG, TEXT_DARK, FIELD_BORDER, CREAM, DARK_GREEN, DARKER_GREEN, ORANGE
 
 def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_menu):
-    orders_list = ft.ListView(expand=True, spacing=10, padding=10)
+    orders_table_container = ft.Column(expand=True)
     running = True
     current_filter = "all"
+    filter_label = ft.Text("Status: All Orders", size=12, color=TEXT_DARK, weight=ft.FontWeight.BOLD)
     
-    # Filter buttons
-    filter_all_btn = ft.ElevatedButton(
-        "All Orders",
-        bgcolor=ACCENT_DARK,
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_orders("all"),
-        icon=ft.Icons.LIST
-    )
+    # Add a lock for thread safety
+    update_lock = threading.Lock()
     
-    filter_placed_btn = ft.ElevatedButton(
-        "Placed",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_orders("placed"),
-        icon=ft.Icons.SHOPPING_BAG
-    )
+    # Filter button data
+    filter_options = [
+        {"label": "All Orders", "status": "all", "icon": ft.Icons.LIST},
+        {"label": "Placed", "status": "placed", "icon": ft.Icons.SHOPPING_BAG},
+        {"label": "Preparing", "status": "preparing", "icon": ft.Icons.RESTAURANT},
+        {"label": "Out for Delivery", "status": "out for delivery", "icon": ft.Icons.LOCAL_SHIPPING},
+        {"label": "Delivered", "status": "delivered", "icon": ft.Icons.CHECK_CIRCLE},
+        {"label": "Cancelled", "status": "cancelled", "icon": ft.Icons.CANCEL},
+    ]
     
-    filter_preparing_btn = ft.ElevatedButton(
-        "Preparing",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_orders("preparing"),
-        icon=ft.Icons.RESTAURANT
-    )
+    def create_menu_item(option):
+        """Create a menu item for the filter dropdown"""
+        return ft.MenuItemButton(
+            content=ft.Row([
+                ft.Icon(option["icon"], size=20, color=TEXT_DARK),
+                ft.Text(option["label"], size=13, color=TEXT_DARK)
+            ], spacing=12),
+            on_click=lambda e, status=option["status"], label=option["label"]: on_filter_select(status, label)
+        )
     
-    filter_delivery_btn = ft.ElevatedButton(
-        "Out for Delivery",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_orders("out for delivery"),
-        icon=ft.Icons.LOCAL_SHIPPING
-    )
-    
-    filter_delivered_btn = ft.ElevatedButton(
-        "Delivered",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_orders("delivered"),
-        icon=ft.Icons.CHECK_CIRCLE
-    )
-    
-    filter_cancelled_btn = ft.ElevatedButton(
-        "Cancelled",
-        bgcolor="#555",
-        color=TEXT_LIGHT,
-        on_click=lambda e: load_orders("cancelled"),
-        icon=ft.Icons.CANCEL
-    )
+    def on_filter_select(status: str, label: str):
+        """Handle filter selection"""
+        filter_label.value = f"Status: {label}"
+        load_orders(status)
+
+    def create_status_badge(status: str, is_payment: bool = False):
+        """Small badge matching the screenshot colors"""
+        if is_payment:
+            if status.lower() == "success":
+                color = "#4CAF50"
+                label = "Success"
+            else:
+                color = "#FF9800"
+                label = "Pending"
+        else:
+            if status.lower() == "fulfilled":
+                color = "#4CAF50"
+                label = "Fulfilled"
+            else:
+                color = "#F44336"
+                label = "Unfulfilled"
+
+        return ft.Container(
+            content=ft.Text(label, size=12, color=color, weight=ft.FontWeight.BOLD),
+            bgcolor=color,
+            opacity=0.08,
+            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+            border_radius=20,
+            border=ft.border.all(1, color)
+        )
+
+    def create_order_card(order: dict):
+        """Unified card layout for all screen sizes"""
+        items_list = order.get('items', [])
+        status = (order.get('status','') or '').lower()
+        def can_cancel(s: str) -> bool:
+            return s in {"placed", "preparing", "out for delivery"}
+
+        return ft.Card(
+            elevation=0,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            content=ft.Container(
+                bgcolor=FIELD_BG,
+                border_radius=12,
+                border=ft.border.all(1, FIELD_BORDER),
+                padding=14,
+                content=ft.Column([
+                    # Header row with order ID and cancel button
+                    ft.Row([
+                        ft.Column([
+                            ft.Text(f"Order #{order['customer_order_number']}", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                            ft.Text(format_datetime_philippine(order.get('created_at')), size=11, color="grey")
+                        ], spacing=2, expand=True),
+                        ft.ElevatedButton(
+                            "Cancel",
+                            visible=can_cancel(status),
+                            bgcolor=ACCENT_DARK,
+                            color=CREAM,
+                            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8), padding=ft.padding.symmetric(horizontal=10, vertical=6)),
+                            on_click=lambda e, oid=order['id'], onum=order['customer_order_number']: cancel_order(oid, onum)
+                        )
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    
+                    ft.Divider(height=10, color=FIELD_BORDER),
+                    
+                    # Customer name (full width)
+                    ft.Row([
+                        ft.Column([
+                            ft.Text("CUSTOMER", size=10, color=TEXT_DARK, weight=ft.FontWeight.BOLD),
+                            ft.Text(
+                                order.get('customer_name', 'N/A'),
+                                size=12,
+                                color=TEXT_DARK,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS
+                            )
+                        ], spacing=4, expand=True)
+                    ]),
+                    
+                    # Second row: Total, Items, Status (3 columns - better spacing on small screens)
+                    ft.Row([
+                        ft.Column([
+                            ft.Text("TOTAL", size=10, color=TEXT_DARK, weight=ft.FontWeight.BOLD),
+                            ft.Text(
+                                f"₱{order['total_amount']:.2f}",
+                                size=12,
+                                color=ACCENT_PRIMARY,
+                                weight=ft.FontWeight.BOLD,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS
+                            )
+                        ], spacing=4, expand=1),
+                        ft.Column([
+                            ft.Text("ITEMS", size=10, color=TEXT_DARK, weight=ft.FontWeight.BOLD),
+                            ft.Text(f"{len(items_list)}", size=12, color=TEXT_DARK, weight=ft.FontWeight.BOLD)
+                        ], spacing=4, expand=1),
+                        ft.Column([
+                            ft.Text("STATUS", size=10, color=TEXT_DARK, weight=ft.FontWeight.BOLD),
+                            ft.Container(
+                                content=ft.Text(
+                                    (order.get('status','') or 'N/A').upper(),
+                                    size=11,
+                                    color=CREAM,
+                                    weight=ft.FontWeight.BOLD,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS
+                                ),
+                                bgcolor=ACCENT_DARK,
+                                padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                border_radius=16,
+                                alignment=ft.alignment.center
+                            )
+                        ], spacing=4, expand=1)
+                    ], spacing=12)
+                ], spacing=8)
+            )
+        )
 
     def update_filter_buttons(active_filter):
-        buttons = {
-            "all": filter_all_btn,
-            "placed": filter_placed_btn,
-            "preparing": filter_preparing_btn,
-            "out for delivery": filter_delivery_btn,
-            "delivered": filter_delivered_btn,
-            "cancelled": filter_cancelled_btn
-        }
-        
-        for filter_name, button in buttons.items():
-            if filter_name == active_filter:
-                button.bgcolor = ACCENT_DARK
-            else:
-                button.bgcolor = "#555"
+        """Update filter label"""
+        for option in filter_options:
+            if option["status"] == active_filter:
+                filter_label.value = f"Status: {option['label']}"
+                break
         
         page.update()
 
@@ -92,103 +176,59 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
 
     def load_orders(filter_status="all"):
         nonlocal current_filter
-        current_filter = filter_status
-        update_filter_buttons(filter_status)
         
-        if current_user.get("user") is None:
-            return
+        # Prevent concurrent updates with thread lock
+        with update_lock:
+            current_filter = filter_status
+            update_filter_buttons(filter_status)
             
-        orders_list.controls.clear()
-        all_orders = get_orders_by_customer(current_user["user"]["id"])
-        
-        # Apply filter
-        if filter_status == "all":
-            orders = all_orders
-        else:
-            orders = [order for order in all_orders if order['status'] == filter_status]
-        
-        # Add count text
-        count_text = ft.Text(
-            f"Showing {len(orders)} order(s)" + (f" with status '{filter_status}'" if filter_status != "all" else ""),
-            size=14,
-            color="grey",
-            italic=True
-        )
-        orders_list.controls.append(count_text)
-        
-        if not orders:
-            orders_list.controls.append(
-                ft.Column(
-                    [
-                        ft.Icon(ft.Icons.HISTORY_TOGGLE_OFF, size=100, color="grey"),
-                        ft.Text(
-                            "No orders found" if filter_status == "all" else f"No {filter_status} orders",
-                            size=18,
-                            color="grey",
-                            text_align=ft.TextAlign.CENTER
-                        )
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    expand=True
-                )
-            )
-        else:
-            for order in orders:
-                formatted_date = format_datetime_philippine(order.get('created_at'))
+            if current_user.get("user") is None:
+                return
                 
-                items_str = "\n".join([f"- {item['name']} (x{item['quantity']}) - ₱{item['price'] * item['quantity']:.2f}" for item in order["items"]])
-                
-                # Determine if order can be cancelled
-                status = order['status'].lower()
-                can_cancel = status in ['placed', 'preparing']
-                
-                # Status color
-                status_color = TEXT_LIGHT
-                if status == 'cancelled':
-                    status_color = "red"
-                elif status == 'delivered':
-                    status_color = "green"
-                elif status == 'out for delivery':
-                    status_color = "orange"
-                
-                # Build order card content
-                card_content = [
-                    ft.Row([
-                        ft.Text(f"Order #{order['customer_order_number']}", size=18, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT, expand=True),
-                        ft.ElevatedButton(
-                            "Cancel Order",
-                            bgcolor="red" if can_cancel else "grey",
-                            color="white" if can_cancel else "#CCCCCC",
-                            disabled=not can_cancel,
-                            on_click=lambda e, oid=order['id'], onum=order['customer_order_number']: cancel_order(oid, onum)
-                        )
-                    ]),
-                    ft.Text(f"Date: {formatted_date}", size=14, color="grey"),
-                    ft.Text(f"Status: {order['status'].capitalize()}", size=16, color=status_color, weight=ft.FontWeight.BOLD),
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Text("Items:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                    ft.Text(items_str, size=13, color=TEXT_LIGHT),
-                    ft.Divider(height=10, color="transparent"),
-                    ft.Text(f"Total: ₱{order['total_amount']:.2f}", size=16, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
-                    ft.Text(f"Delivery Address: {order['delivery_address']}", size=13, color="grey"),
-                    ft.Text(f"Contact: {order['contact_number']}", size=13, color="grey")
-                ]
-                
-                orders_list.controls.append(
-                    ft.Card(
-                        elevation=4,
-                        content=ft.Container(
-                            padding=15,
-                            content=ft.Column(
-                                card_content,
-                                spacing=5,
-                                horizontal_alignment=ft.CrossAxisAlignment.START
+            orders_table_container.controls.clear()
+            all_orders = get_orders_by_customer(current_user["user"]["id"])
+            
+            # Apply filter
+            if filter_status == "all":
+                orders = all_orders
+            else:
+                orders = [order for order in all_orders if order['status'] == filter_status]
+            
+            # Empty state styling
+            if not orders:
+                orders_table_container.controls.append(
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.Icons.HISTORY_TOGGLE_OFF, size=72, color="#777"),
+                            ft.Text(
+                                "No orders found" if filter_status == "all" else f"No {filter_status} orders",
+                                size=16,
+                                color="#AAA",
+                                text_align=ft.TextAlign.CENTER
                             )
-                        )
+                        ], alignment=ft.MainAxisAlignment.CENTER,
+                           horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                           spacing=10),
+                        alignment=ft.alignment.center,
+                        expand=True,
+                        padding=30
                     )
                 )
-        page.update()
+            else:
+                # Use the same card layout for all screen sizes
+                orders_table_container.controls.append(
+                    ft.Container(
+                        content=ft.Column(
+                            [create_order_card(order) for order in orders],
+                            spacing=12,
+                            scroll=ft.ScrollMode.AUTO
+                        ),
+                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                        expand=True
+                    )
+                )
+
+            page.update()
 
     def poll_orders():
         while running:
@@ -197,10 +237,17 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
 
     load_orders()
     threading.Thread(target=poll_orders, daemon=True).start()
+    
+    # Add resize handler to refresh layout when window size changes
+    def on_resize(e):
+        load_orders(current_filter)
+    
+    page.on_resize = on_resize
 
     def stop_polling(e):
         nonlocal running
         running = False
+        page.on_resize = None  # Remove resize handler
         goto_menu(e)
 
     return ft.Container(
@@ -208,43 +255,43 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
             [
                 ft.Container(
                     content=ft.Row([
-                        ft.Text("Order History", size=20, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT, expand=True),
-                        ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=TEXT_LIGHT, on_click=stop_polling)
+                        ft.Text("Order History", size=22, weight=ft.FontWeight.BOLD, color=CREAM, expand=True),
+                        ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=CREAM, on_click=stop_polling, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8), padding=8))
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_center,
-                        end=ft.alignment.bottom_center,
-                        colors=["#6B0113", ACCENT_DARK]
-                    ),
-                    padding=15
+                    bgcolor=ACCENT_PRIMARY,
+                    padding=18,
+                    border_radius=ft.border_radius.only(top_left=0, top_right=0, bottom_left=12, bottom_right=12),
                 ),
                 ft.Container(
                     content=ft.Column([
-                        ft.Text("Filter by Status:", size=14, weight=ft.FontWeight.BOLD, color=TEXT_LIGHT),
                         ft.Row([
-                            filter_all_btn,
-                            filter_placed_btn,
-                            filter_preparing_btn,
-                        ], wrap=True, spacing=5),
-                        ft.Row([
-                            filter_delivery_btn,
-                            filter_delivered_btn,
-                            filter_cancelled_btn,
-                        ], wrap=True, spacing=5)
-                    ]),
+                            ft.Text("Filter", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                            ft.MenuBar(
+                                controls=[
+                                    ft.SubmenuButton(
+                                        content=filter_label,
+                                        controls=[
+                                            create_menu_item(option) for option in filter_options
+                                        ]
+                                    )
+                                ]
+                            )
+                        ], alignment=ft.MainAxisAlignment.START, spacing=12)
+                    ], spacing=10),
                     padding=15,
-                    border=ft.border.all(1, "white"),
-                    border_radius=10,
-                    margin=10
+                    border=ft.border.all(1, FIELD_BORDER),
+                    border_radius=12,
+                    margin=ft.margin.symmetric(horizontal=12, vertical=10),
+                    bgcolor=FIELD_BG,
                 ),
-                orders_list
+                ft.Container(
+                    content=orders_table_container,
+                    padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                    expand=True
+                )
             ],
             scroll=ft.ScrollMode.AUTO
         ),
         expand=True,
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=["#9A031E", "#6B0113"]
-        )
+        bgcolor=FIELD_BG
     )
