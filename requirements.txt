@@ -1,5 +1,0 @@
-# requirements.txt - Food Delivery App 
-flet==0.28.3
-sqlalchemy==2.0.44
-bcrypt==5.0.0
-dotenv==1.0.0
