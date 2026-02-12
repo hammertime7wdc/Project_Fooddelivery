@@ -145,16 +145,20 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
         async def _cancel():
             try:
                 success, message = update_order_status(order_id, "cancelled", current_user["user"]["id"])
-                hide_loading(page, loading)
                 
                 if success:
+                    hide_loading(page, loading)
                     show_snackbar(page, f"Order #{order_number} cancelled successfully!", bgcolor="green")
                     load_orders(current_filter)
+                    page.update()
                 else:
+                    hide_loading(page, loading)
                     show_snackbar(page, f"Cannot cancel: {message}", error=True)
+                    page.update()
             except Exception as e:
                 hide_loading(page, loading)
                 show_snackbar(page, f"Error cancelling order: {str(e)}", error=True)
+                page.update()
         
         page.run_task(_cancel)
 
@@ -277,25 +281,21 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
                             padding=ft.padding.symmetric(horizontal=16, vertical=10),
                             border=ft.border.all(2, ACCENT_PRIMARY),
                             border_radius=10,
-                            bgcolor=FIELD_BG
+                            bgcolor=CREAM
                         ),
                         items=[
                             ft.PopupMenuItem(
                                 content=ft.Row([
-                                    ft.Icon(option["icon"], size=20, color=ACCENT_PRIMARY),
-                                    ft.Text(option["label"], size=14, color=TEXT_DARK)
+                                    ft.Icon(option["icon"], size=20, color=ORANGE),
+                                    ft.Text(option["label"], size=14, color=TEXT_DARK, weight=ft.FontWeight.BOLD)
                                 ], spacing=12),
                                 on_click=lambda e, status=option["status"], label=option["label"]: on_filter_select(status, label)
                             ) for option in filter_options
-                        ]
+                        ],
+                        menu_position=ft.PopupMenuPosition.UNDER,
+                        bgcolor=CREAM
                     ),
-                    padding=15,
-                    shadow=ft.BoxShadow(
-                        spread_radius=1,
-                        blur_radius=8,
-                        color="black12",
-                        offset=ft.Offset(0, 2)
-                    )
+                    padding=15
                 ),
                 
                 # Orders list

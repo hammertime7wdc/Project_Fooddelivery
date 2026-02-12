@@ -1,4 +1,5 @@
 import flet as ft
+from core.image_utils import get_base64_image
 from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
@@ -28,7 +29,7 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
                 ft.Container(height=25),
 
                 ft.Image(
-                    src="assets/login.png",
+                    src_base64=get_base64_image("assets/login.png"),
                     width=120,
                     height=120,
                     fit=ft.ImageFit.CONTAIN
