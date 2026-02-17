@@ -1,7 +1,7 @@
 # core/database.py (Refactored with SQLAlchemy)
 import json
 from sqlalchemy import or_
-from models.models import Session, MenuItem, Order, AuditLog, init_database as init_db
+from models.models import Session, MenuItem, Order, AuditLog, Favorite, init_database as init_db
 
 
 def init_database():
@@ -70,18 +70,25 @@ def get_categories():
         session.close()
 
 
-def create_menu_item(name, description, price, image, image_type='base64', category='Uncategorized', created_by=None):
-    """Create menu item with image"""
+def create_menu_item(name, description, price, stock, image, image_type='base64', category='Uncategorized', created_by=None, calories=0, ingredients='', recipe='', allergens='', is_on_sale=0, sale_percentage=0):
+    """Create menu item with image and nutrition info"""
     session = Session()
     try:
         item = MenuItem(
             name=name,
             description=description,
             price=price,
+            stock=stock,
             image=image,
             image_type=image_type,
             category=category,
-            created_by=created_by
+            created_by=created_by,
+            calories=calories,
+            ingredients=ingredients,
+            recipe=recipe,
+            allergens=allergens,
+            is_on_sale=is_on_sale,
+            sale_percentage=sale_percentage
         )
         session.add(item)
         session.commit()
@@ -92,7 +99,7 @@ def create_menu_item(name, description, price, image, image_type='base64', categ
         session.close()
 
 
-def update_menu_item(item_id, name, description, price, image, image_type='base64', category='Uncategorized', user_id=None):
+def update_menu_item(item_id, name, description, price, stock, image, image_type='base64', category='Uncategorized', user_id=None, calories=0, ingredients='', recipe='', allergens='', is_on_sale=0, sale_percentage=0):
     session = Session()
     try:
         item = session.query(MenuItem).filter_by(id=item_id).first()
@@ -100,9 +107,16 @@ def update_menu_item(item_id, name, description, price, image, image_type='base6
             item.name = name
             item.description = description
             item.price = price
+            item.stock = stock
             item.image = image
             item.image_type = image_type
             item.category = category
+            item.calories = calories
+            item.ingredients = ingredients
+            item.recipe = recipe
+            item.allergens = allergens
+            item.is_on_sale = is_on_sale
+            item.sale_percentage = sale_percentage
             session.commit()
             
             if user_id:
@@ -126,24 +140,84 @@ def delete_menu_item(item_id, user_id=None):
         session.close()
 
 
-# ========== ORDER OPERATIONS ==========
-def create_order(customer_id, customer_name, address, contact, items, total):
+def get_menu_item_stats(item_id):
+    """Get statistics for a specific menu item"""
     session = Session()
     try:
+        item = session.query(MenuItem).filter_by(id=item_id).first()
+        if not item:
+            return None
+        
+        # Get all orders
+        orders = session.query(Order).all()
+        
+        total_orders = 0
+        total_quantity = 0
+        total_revenue = 0.0
+        
+        for order in orders:
+            try:
+                items_list = json.loads(order.items)
+                for order_item in items_list:
+                    if order_item.get("id") == item_id:
+                        quantity = int(order_item.get("quantity", 0))
+                        price = float(order_item.get("price", 0))
+                        total_orders += 1
+                        total_quantity += quantity
+                        total_revenue += (quantity * price)
+            except Exception:
+                continue
+        
+        return {
+            "item_name": item.name,
+            "category": item.category,
+            "current_price": item.price,
+            "current_stock": item.stock,
+            "total_orders": total_orders,
+            "total_quantity_sold": total_quantity,
+            "total_revenue": total_revenue,
+            "created_at": item.created_at.isoformat() if item.created_at else None
+        }
+    finally:
+        session.close()
+
+
+# ========== ORDER OPERATIONS ==========
+def create_order(customer_id, customer_name, address, contact, items, total, payment_method="Cash on Delivery"):
+    session = Session()
+    try:
+        # Decrease stock on order placement
+        for item in items or []:
+            try:
+                item_id = item.get("id")
+                qty = int(item.get("quantity", 0))
+            except Exception:
+                item_id = None
+                qty = 0
+            if not item_id or qty <= 0:
+                continue
+            menu_item = session.query(MenuItem).filter_by(id=item_id).first()
+            if menu_item:
+                current_stock = menu_item.stock or 0
+                menu_item.stock = max(0, current_stock - qty)
+
         items_json = json.dumps(items)
+        from datetime import datetime
         order = Order(
             customer_id=customer_id,
             customer_name=customer_name,
             delivery_address=address,
             contact_number=contact,
             total_amount=total,
-            items=items_json
+            items=items_json,
+            payment_method=payment_method,
+            placed_at=datetime.now()
         )
         session.add(order)
         session.commit()
         
         order_id = order.id
-        log_action(customer_id, "ORDER_PLACED", f"Order #{order_id} - Amount: {total}")
+        log_action(customer_id, "ORDER_PLACED", f"Order #{order_id} - Amount: {total} - Payment: {payment_method}")
     finally:
         session.close()
 
@@ -233,6 +307,37 @@ def update_order_status(order_id, new_status, user_id=None):
         if new_status not in allowed.get(current, []):
             return False, f"Invalid status transition: {current} → {new_status}"
 
+        # If cancelled before preparation, restore stock
+        if new_status == "cancelled" and current == "placed":
+            try:
+                items = json.loads(order.items) if order.items else []
+            except Exception:
+                items = []
+            for item in items:
+                try:
+                    item_id = item.get("id")
+                    qty = int(item.get("quantity", 0))
+                except Exception:
+                    item_id = None
+                    qty = 0
+                if not item_id or qty <= 0:
+                    continue
+                menu_item = session.query(MenuItem).filter_by(id=item_id).first()
+                if menu_item:
+                    current_stock = menu_item.stock or 0
+                    menu_item.stock = current_stock + qty
+
+        # Update timeline based on status change
+        from datetime import datetime
+        if new_status == "preparing":
+            order.preparing_at = datetime.now()
+        elif new_status == "out for delivery":
+            order.out_for_delivery_at = datetime.now()
+        elif new_status == "delivered":
+            order.delivered_at = datetime.now()
+        elif new_status == "cancelled":
+            order.cancelled_at = datetime.now()
+
         order.status = new_status
         session.commit()
 
@@ -241,6 +346,57 @@ def update_order_status(order_id, new_status, user_id=None):
                       f"Order #{order_id} : {current} → {new_status}")
 
         return True, "Status updated"
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
+
+
+# ========== FAVORITE OPERATIONS ==========
+def get_user_favorites(user_id):
+    """Get all favorited menu items for a user"""
+    session = Session()
+    try:
+        favorites = session.query(Favorite).filter_by(user_id=user_id).all()
+        return [fav.menu_item_id for fav in favorites]
+    finally:
+        session.close()
+
+
+def add_favorite(user_id, menu_item_id):
+    """Add a menu item to user's favorites"""
+    session = Session()
+    try:
+        # Check if already favorited
+        existing = session.query(Favorite).filter_by(
+            user_id=user_id, 
+            menu_item_id=menu_item_id
+        ).first()
+        
+        if not existing:
+            favorite = Favorite(user_id=user_id, menu_item_id=menu_item_id)
+            session.add(favorite)
+            session.commit()
+            return True, "Added to favorites"
+        return False, "Already in favorites"
+    except Exception as e:
+        session.rollback()
+        return False, str(e)
+    finally:
+        session.close()
+
+
+def remove_favorite(user_id, menu_item_id):
+    """Remove a menu item from user's favorites"""
+    session = Session()
+    try:
+        session.query(Favorite).filter_by(
+            user_id=user_id, 
+            menu_item_id=menu_item_id
+        ).delete()
+        session.commit()
+        return True, "Removed from favorites"
     except Exception as e:
         session.rollback()
         return False, str(e)

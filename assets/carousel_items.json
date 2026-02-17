@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "title": "🔥Occasion Sale",
+      "description": "SUPERBOWL SPECIAL: 50% off all burgers!",
+      "image": null,
+      "bg_color": "#E9762B"
+    },
+    {
+      "title": "⭐ New Arrival",
+      "description": "BURGA BURGA BURGA BURGA",
+      "image": "burger.png",
+      "bg_color": "#0D4715"
+    },
+    {
+      "title": "🫡NICE",
+
+      "description": "Fresh grilled salmon with lemon butter sauce",
+      "image": null,
+      "bg_color": "#8B4513"
+    },
+    {
+      "title": "🎉 Popular Choice",
+      "description": "Our best-selling beef burger with fries",
+      "image": null,
+      "bg_color": "#C41E3A"
+    }
+  ]
+}

@@ -1,24 +1,16 @@
 import flet as ft
 import asyncio
+from core.image_utils import get_base64_image
 from utils import ACCENT_DARK, DARK_GREEN, ORANGE
 
 
 def splash_screen(page: ft.Page, current_user: dict, cart: list, goto_login, duration_seconds: float = 2.5):
-    async def go_next():
-        await asyncio.sleep(duration_seconds)
-        splash.opacity = 0
-        page.update()
-        await asyncio.sleep(0.5)
-        goto_login()
-
-    page.run_task(go_next)
-
     splash = ft.Container(
         content=ft.Column(
             [
                 ft.Container(height=40),
                 ft.Image(
-                    src="assets/burger.PNG",
+                    src_base64=get_base64_image("assets/burger.PNG"),
                     width=140,
                     height=140,
                     fit=ft.ImageFit.CONTAIN,
@@ -47,5 +39,14 @@ def splash_screen(page: ft.Page, current_user: dict, cart: list, goto_login, dur
         opacity=1,
         animate_opacity=500,
     )
+    
+    async def go_next():
+        await asyncio.sleep(duration_seconds)
+        splash.opacity = 0
+        page.update()
+        await asyncio.sleep(0.5)
+        goto_login()
+
+    page.run_task(go_next)
 
     return splash

@@ -141,12 +141,11 @@ def get_password_strength(password: str):
         return 'very strong', score
 
 # ========== USER AUTHENTICATION WITH LOCKOUT ==========
-def authenticate_user(email: str, password: str, role: str):
+def authenticate_user(email: str, password: str):
     session = Session()
     try:
         user = session.query(User).filter_by(
-            email=email, 
-            role=role, 
+            email=email,
             is_active=1
         ).first()
         
@@ -269,11 +268,17 @@ def create_user_by_admin(email: str, password: str, full_name: str, role: str, a
 
 
 def delete_user(user_id: int, admin_id: int):
+    from models.models import Order
     session = Session()
     try:
         user = session.query(User).filter_by(id=user_id).first()
         if not user:
             return False, "User not found"
+        
+        # Check if user has orders
+        order_count = session.query(Order).filter_by(customer_id=user_id).count()
+        if order_count > 0:
+            return False, f"Cannot delete user. User has {order_count} order(s). Please deactivate the account instead."
         
         user_email = user.email
         session.delete(user)
@@ -281,6 +286,9 @@ def delete_user(user_id: int, admin_id: int):
         
         log_action(admin_id, "USER_DELETED", f"Admin deleted user: {user_email}")
         return True, f"User {user_email} deleted successfully"
+    except Exception as e:
+        session.rollback()
+        return False, f"Error deleting user: {str(e)}"
     finally:
         session.close()
 

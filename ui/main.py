@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import init_database
 from core.session_manager import SessionManager
+from core.google_oauth import GoogleOAuthHandler
 from utils import show_snackbar
 from screens.login import login_screen
 from screens.signup import signup_screen
@@ -18,11 +19,16 @@ from screens.order_confirmation import order_confirmation_screen
 from screens.profile import profile_screen
 from screens.owner_dashboard import owner_dashboard_screen
 from screens.admin_dashboard import admin_dashboard_screen
+from screens.splash import splash_screen
+
+# Global OAuth handler instance
+GLOBAL_OAUTH_HANDLER = GoogleOAuthHandler()
+GLOBAL_OAUTH_HANDLER.start_callback_server()
 
 def main(page: ft.Page):
     page.title = "Food Delivery App"
     page.theme_mode = ft.ThemeMode.DARK
-    page.bgcolor = "#6B0113"
+    page.bgcolor = "#E9762B"  # Set to ORANGE to match splash screen
     page.padding = 0
     page.window_width = 412
     page.window_height = 917
@@ -92,9 +98,20 @@ def main(page: ft.Page):
         if current_user["user"] is not None and session_manager.is_active:
             session_manager.update_activity()
         
-        page.controls.clear()
-        page.add(screen_func(page, current_user, cart, **kwargs))
-        page.update()
+        # Safely clear controls by replacing with new screen
+        # This avoids recursion issues with circular references
+        try:
+            # Create new screen first
+            new_screen = screen_func(page, current_user, cart, **kwargs)
+            # Replace all controls at once instead of clearing then adding
+            page.controls = [new_screen]
+            page.update()
+        except Exception as e:
+            print(f"Navigation error: {e}")
+            # Fallback: force clear and rebuild
+            page.clean()
+            page.add(screen_func(page, current_user, cart, **kwargs))
+            page.update()
 
     # Callbacks for navigation
     def goto_login(e=None, logout_message=None, cause=None):
@@ -121,13 +138,14 @@ def main(page: ft.Page):
             goto_signup=goto_signup,
             goto_reset=goto_reset,
             goto_dashboard=goto_dashboard,
+            oauth_handler=GLOBAL_OAUTH_HANDLER,
             logout_message=logout_message,
             session_timed_out=session_timed_out,
             cause=cause,
         )
 
     def goto_signup(e=None):
-        navigate_to(signup_screen, goto_login=goto_login)
+        navigate_to(signup_screen, goto_login=goto_login, oauth_handler=GLOBAL_OAUTH_HANDLER)
 
     def goto_reset(e=None):
         navigate_to(reset_password_screen, goto_login=goto_login)
@@ -203,7 +221,8 @@ def main(page: ft.Page):
     
     page.on_close = on_page_close
     
-    # Start with login
-    goto_login(cause=None)
+    # Start with splash screen
+    page.add(splash_screen(page, current_user, cart, goto_login))
 
-ft.app(target=main)
+ft.app(target=main, view=ft.FLET_APP) #for desktop app
+#ft.app(target=main, view=ft.WEB_BROWSER, port=8080) #for web app (opens in browser)

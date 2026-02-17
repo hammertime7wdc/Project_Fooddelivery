@@ -1,12 +1,32 @@
+from pathlib import Path
 import flet as ft
 
 # Constants
-ACCENT_DARK = "#3D000D"
-ACCENT_PRIMARY = "#9A031E"
+ACCENT_DARK = "#0D4715"
+ACCENT_PRIMARY = "#E9762B"
 TEXT_LIGHT = "white"
-TEXT_DARK = "white"
-FIELD_BG = "black"
-FIELD_BORDER = "#6B0113"
+TEXT_DARK = "#000000"
+FIELD_BG = "#EBE1D1"
+FIELD_BORDER = "#0D4715"
+CREAM = "#EBE1D1"
+DARK_GREEN = "#0D4715"
+DARKER_GREEN = "#062B1A"
+ORANGE = "#E9762B"
+
+BASE_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = BASE_DIR / "assets"
+
+# Function to setup icon theme
+def setup_icon_theme(page: ft.Page):
+    """Set default icon color to black"""
+    if not page.theme:
+        page.theme = ft.Theme()
+    page.theme.color_scheme = ft.ColorScheme(
+        primary=ORANGE,
+        on_surface="#000000",
+        on_surface_variant="#000000"
+    )
+    page.update()
 
 # Snackbar helper
 def show_snackbar(page: ft.Page, message: str, error: bool = False, success: bool = False, duration: int = 8000):
@@ -34,9 +54,9 @@ def create_image_widget(item, width=100, height=100):
         return ft.Text(item["image"], size=50)
     elif item.get("image_type") == "path" and item.get("image"):
         # Construct path: "uuid.jpg" -> "assets/menu/uuid.jpg"
-        img_path = f"assets/menu/{item['image']}"
+        img_path = ASSETS_DIR / "menu" / item["image"]
         return ft.Image(
-            src=img_path,
+            src=str(img_path),
             width=width,
             height=height,
             fit=ft.ImageFit.COVER,
@@ -59,9 +79,9 @@ def create_profile_pic_widget(user, width=100, height=100):
     """Create profile picture widget - file-based storage"""
     if user.get("pic_type") == "path" and user.get("profile_picture"):
         # File-based approach
-        img_path = f"assets/profiles/{user['profile_picture']}"
+        img_path = ASSETS_DIR / "profiles" / user["profile_picture"]
         return ft.Image(
-            src=img_path,
+            src=str(img_path),
             width=width,
             height=height,
             fit=ft.ImageFit.COVER,

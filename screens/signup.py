@@ -3,10 +3,12 @@ from datetime import datetime
 import threading
 import time
 import json
+import webbrowser
 from core.auth import register_user, validate_password, validate_email, validate_full_name, get_password_strength
+from core.image_utils import get_base64_image
 from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
-def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
+def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, oauth_handler=None):
     # Load welcome messages from JSON
     try:
         with open("assets/welcome_messages.json", "r") as f:
@@ -226,13 +228,103 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
         else:
             show_snackbar(page, msg)
 
+    def google_signup_click(e):
+        """Handle Google OAuth signup by redirecting to Google"""
+        def perform_google_signup():
+            try:
+                # Show loading dialog
+                status_dialog = ft.AlertDialog(
+                    title=ft.Text("Signing up with Google..."),
+                    content=ft.Column([
+                        ft.ProgressRing(),
+                        ft.Text("Waiting for authorization. A browser window should have opened.", size=12),
+                    ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, width=300),
+                )
+                page.dialog = status_dialog
+                status_dialog.open = True
+                page.update()
+                
+                # Build Google OAuth URL from config or environment
+                import os
+                import json
+                
+                with open('client_secret.json', 'r') as f:
+                    config = json.load(f)['web']
+                
+                client_id = config['client_id']
+                
+                # Use environment variable for ngrok, fallback to localhost
+                redirect_uri = os.getenv('OAUTH_CALLBACK_URL', 'http://localhost:9000')
+                
+                scope = "openid email profile"
+                
+                # Generate unique state for this signup attempt
+                import uuid
+                state = str(uuid.uuid4())
+                
+                # Force fresh consent each time to get a new authorization code
+                auth_url = f"https://accounts.google.com/o/oauth2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}&access_type=offline&prompt=consent&state={state}"
+                
+                # Redirect the page to Google OAuth
+                page.launch_url(auth_url)
+                
+                # Wait for auth code from callback server (max 5 minutes)
+                import time
+                max_wait = 300
+                start_time = time.time()
+                
+                # Wait for this specific state's code
+                while state not in oauth_handler.auth_codes and (time.time() - start_time) < max_wait:
+                    time.sleep(1)
+                
+                # Close dialog
+                if page.dialog:
+                    page.dialog.open = False
+                    page.update()
+                
+                if state not in oauth_handler.auth_codes:
+                    show_snackbar(page, "Authorization timeout. Please try again.", error=True)
+                    return
+                
+                # Exchange code for token and get user info
+                if not oauth_handler.exchange_code_for_token(state):
+                    show_snackbar(page, "Failed to authenticate with Google.", error=True)
+                    return
+                
+                user_info = oauth_handler.get_user_info(state)
+                if not user_info:
+                    show_snackbar(page, "Failed to get user info from Google.", error=True)
+                    return
+                
+                # Get user info
+                email = user_info.get('email')
+                name = user_info.get('name', 'Google User')
+                
+                # Register user
+                success, msg = register_user(email, "", name, "customer")
+                if success:
+                    show_snackbar(page, "Account created successfully!")
+                    goto_login(e)
+                else:
+                    show_snackbar(page, f"Registration failed: {msg}")
+                        
+            except Exception as ex:
+                if page.dialog:
+                    page.dialog.open = False
+                    page.update()
+                show_snackbar(page, f"Error: {str(ex)}", error=True)
+                import traceback
+                traceback.print_exc()
+        
+        threading.Thread(target=perform_google_signup, daemon=True).start()
+
     return ft.Container(
         content=ft.Column(
             [
                 ft.Container(height=20),
 
                 ft.Image(
-                    src="assets/login.png",
+                    src_base64=get_base64_image("assets/login.png"),
                     width=110,
                     height=110,
                     fit=ft.ImageFit.CONTAIN
@@ -272,6 +364,30 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
                                 color=CREAM,
                                 on_click=signup_click,
                                 elevation=4,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=8)
+                                )
+                            ),
+
+                            ft.Container(height=15),
+
+                            ft.Text(
+                                "— OR CONTINUE WITH —",
+                                size=12,
+                                color=DARK_GREEN,
+                                weight=ft.FontWeight.BOLD
+                            ),
+
+                            ft.Container(height=10),
+
+                            ft.ElevatedButton(
+                                "  Google",
+                                width=280,
+                                height=45,
+                                bgcolor=CREAM,
+                                color=DARK_GREEN,
+                                on_click=lambda e: google_signup_click(e),
+                                elevation=2,
                                 style=ft.ButtonStyle(
                                     shape=ft.RoundedRectangleBorder(radius=8)
                                 )

@@ -1,5 +1,5 @@
 # core/models.py
-from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, ForeignKey, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from datetime import datetime
@@ -70,12 +70,19 @@ class MenuItem(Base):
     name = Column(String, nullable=False)
     description = Column(Text)
     price = Column(Float, nullable=False)
+    stock = Column(Integer, default=0)
     image = Column(String, default='')
     image_type = Column(String, default='base64')
     is_available = Column(Integer, default=1)
     created_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     category = Column(String, default='Uncategorized')
+    calories = Column(Integer, default=0)
+    ingredients = Column(Text, default='')
+    recipe = Column(Text, default='')
+    allergens = Column(String, default='')
+    is_on_sale = Column(Integer, default=0)
+    sale_percentage = Column(Integer, default=0)
 
     # Relationships
     creator = relationship("User", back_populates="menu_items")
@@ -86,12 +93,19 @@ class MenuItem(Base):
             'name': self.name,
             'description': self.description,
             'price': self.price,
+            'stock': self.stock,
             'image': self.image,
             'image_type': self.image_type,
             'is_available': self.is_available,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'category': self.category
+            'category': self.category,
+            'calories': self.calories,
+            'ingredients': self.ingredients,
+            'recipe': self.recipe,
+            'allergens': self.allergens,
+            'is_on_sale': self.is_on_sale,
+            'sale_percentage': self.sale_percentage
         }
 
 
@@ -106,7 +120,13 @@ class Order(Base):
     total_amount = Column(Float, nullable=False)
     items = Column(Text, nullable=False)  # JSON string
     status = Column(String, default='placed')
+    payment_method = Column(String, default='Cash on Delivery')
     created_at = Column(DateTime, default=datetime.now)
+    placed_at = Column(DateTime, nullable=True)
+    preparing_at = Column(DateTime, nullable=True)
+    out_for_delivery_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
 
     # Relationships
     customer = relationship("User", back_populates="orders")
@@ -122,7 +142,13 @@ class Order(Base):
             'total_amount': self.total_amount,
             'items': json.loads(self.items),
             'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'payment_method': self.payment_method,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'placed_at': self.placed_at.isoformat() if self.placed_at else None,
+            'preparing_at': self.preparing_at.isoformat() if self.preparing_at else None,
+            'out_for_delivery_at': self.out_for_delivery_at.isoformat() if self.out_for_delivery_at else None,
+            'delivered_at': self.delivered_at.isoformat() if self.delivered_at else None,
+            'cancelled_at': self.cancelled_at.isoformat() if self.cancelled_at else None
         }
 
 
@@ -148,9 +174,70 @@ class AuditLog(Base):
         }
 
 
+class Favorite(Base):
+    __tablename__ = 'favorites'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    menu_item_id = Column(Integer, ForeignKey('menu_items.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'menu_item_id': self.menu_item_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
 def init_database():
     """Initialize database and create default users from .env"""
     Base.metadata.create_all(engine)
+
+    # Lightweight migration for existing DBs
+    with engine.connect() as conn:
+        # Migrate: Add stock column to menu_items if it doesn't exist
+        result = conn.execute(text("PRAGMA table_info(menu_items)"))
+        columns = [row[1] for row in result.fetchall()]
+        if "stock" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN stock INTEGER DEFAULT 0"))
+        
+        # Migrate: Add nutrition and recipe columns to menu_items if they don't exist
+        if "calories" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN calories INTEGER DEFAULT 0"))
+        if "ingredients" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN ingredients TEXT DEFAULT ''"))
+        if "recipe" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN recipe TEXT DEFAULT ''"))
+        if "allergens" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN allergens STRING DEFAULT ''"))
+        
+        # Migrate: Add sale columns to menu_items if they don't exist
+        sale_columns_added = False
+        if "is_on_sale" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN is_on_sale INTEGER DEFAULT 0"))
+            sale_columns_added = True
+        if "sale_percentage" not in columns:
+            conn.execute(text("ALTER TABLE menu_items ADD COLUMN sale_percentage INTEGER DEFAULT 0"))
+            sale_columns_added = True
+        
+        if sale_columns_added:
+            conn.commit()
+
+        # Migrate: Add timestamp columns to orders if they don't exist
+        result = conn.execute(text("PRAGMA table_info(orders)"))
+        columns = [row[1] for row in result.fetchall()]
+        
+        timestamp_columns = ["placed_at", "preparing_at", "out_for_delivery_at", "delivered_at", "cancelled_at"]
+        for col in timestamp_columns:
+            if col not in columns:
+                conn.execute(text(f"ALTER TABLE orders ADD COLUMN {col} DATETIME DEFAULT NULL"))
+        
+        # Migrate: Add payment_method column to orders if it doesn't exist
+        if "payment_method" not in columns:
+            conn.execute(text("ALTER TABLE orders ADD COLUMN payment_method STRING DEFAULT 'Cash on Delivery'"))
+            conn.commit()
 
     session = Session()
     try:
@@ -186,6 +273,7 @@ def init_database():
                 name='Lechon',
                 description='Classic pinoy lechon',
                 price=240.0,
+                stock=20,
                 image='🐷',
                 image_type='emoji',
                 category='Mains'
@@ -195,6 +283,7 @@ def init_database():
                 name='Sisig',
                 description='Classic Sisig',
                 price=140.0,
+                stock=25,
                 image='🍳',
                 image_type='emoji',
                 category='Appetizers'

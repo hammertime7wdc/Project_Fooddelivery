@@ -7,6 +7,61 @@ from core.datetime_utils import format_datetime_philippine
 from utils import show_snackbar, TEXT_LIGHT, ACCENT_DARK, ACCENT_PRIMARY, FIELD_BG, TEXT_DARK, FIELD_BORDER, CREAM, DARK_GREEN, DARKER_GREEN, ORANGE
 from screens.profile.loading_screen import show_loading, hide_loading
 
+
+def _create_customer_timeline(order):
+    """Creates a timeline for customer view showing status transitions with timestamps"""
+    timeline_events = [
+        ("placed", order.get("placed_at"), "✓ Placed"),
+        ("preparing", order.get("preparing_at"), "👨‍🍳 Preparing"),
+        ("out for delivery", order.get("out_for_delivery_at"), "🚚 Out for Delivery"),
+        ("delivered", order.get("delivered_at"), "✅ Delivered"),
+        ("cancelled", order.get("cancelled_at"), "✗ Cancelled"),
+    ]
+    
+    timeline_items = []
+    current_status = order.get("status", "placed").lower()
+    
+    for status_name, timestamp, display_label in timeline_events:
+        # Skip cancelled if order is not cancelled
+        if status_name == "cancelled" and current_status != "cancelled":
+            continue
+        
+        # Check if this status has been reached
+        is_completed = False
+        is_current = False
+        
+        status_order = ["placed", "preparing", "out for delivery", "delivered"]
+        cancelled_order = ["placed", "cancelled"]
+        
+        if current_status == "cancelled":
+            is_completed = status_name in cancelled_order and cancelled_order.index(status_name) <= cancelled_order.index(current_status)
+            is_current = status_name == current_status
+        else:
+            is_completed = status_name in status_order and status_order.index(status_name) <= status_order.index(current_status)
+            is_current = status_name == current_status
+        
+        # Format timestamp if available
+        time_text = ""
+        if timestamp:
+            try:
+                time_text = f" • {format_datetime_philippine(timestamp)}"
+            except:
+                time_text = f" • {timestamp}"
+        
+        # Color based on completion status
+        text_color = ACCENT_PRIMARY if is_completed else "#999999"
+        font_weight = ft.FontWeight.BOLD if is_current else ft.FontWeight.W_600
+        
+        timeline_items.append(
+            ft.Row([
+                ft.Text(display_label, size=14, color=text_color, weight=font_weight),
+                ft.Text(time_text, size=12, color="#555555", weight=ft.FontWeight.W_500, expand=True)
+            ], spacing=2, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        )
+    
+    return timeline_items
+
+
 def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_menu):
     orders_table_container = ft.Column(expand=True)
     running = True
@@ -51,6 +106,33 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
             "cancelled": {"bg": "#FFEBEE", "text": "#C62828"},
         }
         colors = status_colors.get(status, {"bg": "#F5F5F5", "text": "#666"})
+        
+        # Build timeline items
+        timeline_items = _create_customer_timeline(order)
+        
+        # Create timeline content container
+        timeline_content = ft.Container(
+            content=ft.Column(timeline_items, spacing=10),
+            padding=16,
+            bgcolor="#F8F8F8",
+            border_radius=8,
+            border=ft.border.all(1, ACCENT_PRIMARY),
+            visible=False
+        )
+        
+        expand_button = ft.IconButton(
+            icon=ft.Icons.EXPAND_MORE,
+            icon_size=24,
+            icon_color=ACCENT_PRIMARY,
+            tooltip="View timeline"
+        )
+        
+        def toggle_timeline(e):
+            timeline_content.visible = not timeline_content.visible
+            expand_button.icon = ft.Icons.EXPAND_LESS if timeline_content.visible else ft.Icons.EXPAND_MORE
+            page.update()
+
+        expand_button.on_click = toggle_timeline
 
         return ft.Container(
             content=ft.Column([
@@ -60,7 +142,7 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
                         ft.Text(f"Order #{order['customer_order_number']}", 
                                size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
                         ft.Text(format_datetime_philippine(order.get('created_at')), 
-                               size=10, color="#888"),
+                               size=11, color=ACCENT_DARK, weight=ft.FontWeight.W_500),
                     ], spacing=2, expand=True),
                     ft.Container(
                         content=ft.Text(status.upper(), 
@@ -116,9 +198,25 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
                         ),
                         on_click=lambda e, oid=order['id'], onum=order['customer_order_number']: cancel_order(oid, onum)
                     )
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-            ], spacing=6),
-            bgcolor=FIELD_BG,
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                
+                # Timeline info tab (collapsible header)
+                ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.TIMELINE, size=22, color=ACCENT_PRIMARY),
+                        ft.Text("Order Timeline", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK, expand=True),
+                        expand_button
+                    ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    bgcolor="#FFFFFF",
+                    padding=ft.padding.symmetric(horizontal=14, vertical=12),
+                    border_radius=8,
+                    border=ft.border.all(1.5, ACCENT_PRIMARY)
+                ),
+                
+                # Timeline content (hidden by default)
+                timeline_content
+            ], spacing=8),
+            bgcolor="#FFFFFF",
             border_radius=10,
             padding=12,
             shadow=ft.BoxShadow(
@@ -141,22 +239,78 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
     def cancel_order(order_id, order_number):
         """Cancel an order with loading indicator"""
         loading = show_loading(page, "Cancelling order...")
+        page.update()
         
-        async def _cancel():
+        def _cancel_sync():
             try:
                 success, message = update_order_status(order_id, "cancelled", current_user["user"]["id"])
+                
                 hide_loading(page, loading)
+                page.update()
                 
                 if success:
+                    # Manually rebuild the orders list
+                    orders_table_container.controls.clear()
+                    all_orders = get_orders_by_customer(current_user["user"]["id"])
+                    
+                    # Apply current filter
+                    if current_filter == "all":
+                        filtered_orders = all_orders
+                    else:
+                        filtered_orders = [order for order in all_orders if order['status'] == current_filter]
+                    
+                    # Rebuild order cards
+                    if filtered_orders:
+                        orders_table_container.controls.append(
+                            ft.Column(
+                                [create_order_card(order) for order in filtered_orders],
+                                spacing=10,
+                                scroll=ft.ScrollMode.AUTO
+                            )
+                        )
+                    else:
+                        # Show empty state if no orders match filter
+                        empty_messages = {
+                            "all": ("No Orders Yet", "You haven't placed any orders. Start ordering delicious food now!"),
+                            "placed": ("No Placed Orders", "You don't have any orders in this status"),
+                            "preparing": ("No Orders Being Prepared", ""),
+                            "out for delivery": ("No Orders Out for Delivery", ""),
+                            "delivered": ("No Delivered Orders", "Come back after an order is delivered"),
+                            "cancelled": ("No Cancelled Orders", ""),
+                        }
+                        title, subtitle = empty_messages.get(current_filter, ("No Orders", ""))
+                        
+                        orders_table_container.controls.append(
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Container(height=20),
+                                    ft.Icon(ft.Icons.SHOPPING_CART_CHECKOUT, size=80, color="#DDD"),
+                                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, 
+                                           color=TEXT_DARK, text_align=ft.TextAlign.CENTER),
+                                    ft.Text(subtitle, size=12, color="#999", 
+                                           text_align=ft.TextAlign.CENTER, width=250) if subtitle else ft.Container(),
+                                    ft.Container(height=20),
+                                ], 
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                spacing=12),
+                                alignment=ft.alignment.center,
+                                expand=True,
+                                padding=30
+                            )
+                        )
+                    
                     show_snackbar(page, f"Order #{order_number} cancelled successfully!", bgcolor="green")
-                    load_orders(current_filter)
+                    page.update()
                 else:
                     show_snackbar(page, f"Cannot cancel: {message}", error=True)
+                    page.update()
             except Exception as e:
                 hide_loading(page, loading)
                 show_snackbar(page, f"Error cancelling order: {str(e)}", error=True)
+                page.update()
         
-        page.run_task(_cancel)
+        _cancel_sync()
 
     def load_orders(filter_status="all"):
         nonlocal current_filter
@@ -277,25 +431,21 @@ def order_history_screen(page: ft.Page, current_user: dict, cart: list, goto_men
                             padding=ft.padding.symmetric(horizontal=16, vertical=10),
                             border=ft.border.all(2, ACCENT_PRIMARY),
                             border_radius=10,
-                            bgcolor=FIELD_BG
+                            bgcolor=CREAM
                         ),
                         items=[
                             ft.PopupMenuItem(
                                 content=ft.Row([
-                                    ft.Icon(option["icon"], size=20, color=ACCENT_PRIMARY),
-                                    ft.Text(option["label"], size=14, color=TEXT_DARK)
+                                    ft.Icon(option["icon"], size=20, color=ORANGE),
+                                    ft.Text(option["label"], size=14, color=TEXT_DARK, weight=ft.FontWeight.BOLD)
                                 ], spacing=12),
                                 on_click=lambda e, status=option["status"], label=option["label"]: on_filter_select(status, label)
                             ) for option in filter_options
-                        ]
+                        ],
+                        menu_position=ft.PopupMenuPosition.UNDER,
+                        bgcolor=CREAM
                     ),
-                    padding=15,
-                    shadow=ft.BoxShadow(
-                        spread_radius=1,
-                        blur_radius=8,
-                        color="black12",
-                        offset=ft.Offset(0, 2)
-                    )
+                    padding=15
                 ),
                 
                 # Orders list

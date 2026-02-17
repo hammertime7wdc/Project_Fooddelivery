@@ -3,10 +3,13 @@ from datetime import datetime
 import threading
 import time
 import json
-from core.auth import authenticate_user, validate_email
+import webbrowser
+from core.auth import authenticate_user, validate_email, register_user
+from core.image_utils import get_base64_image
 from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
+from screens.login_loading import show_login_loading, hide_login_loading
 
-def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, logout_message=None, session_timed_out=None, cause=None):
+def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, oauth_handler=None, logout_message=None, session_timed_out=None, cause=None):
     # Determine what message to show
     message_to_show = None
     if logout_message:
@@ -39,21 +42,44 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
     
     # Rotating message function with fade effect
     message_index = [0]
+    stop_rotation = [False]  # Flag to stop the rotation thread
+    
     def rotate_message():
-        while True:
+        while not stop_rotation[0]:
             time.sleep(3.5)
+            if stop_rotation[0]:
+                break
             # Fade out
             for i in range(10):
-                welcome_text.opacity = 1 - (i / 10)
-                page.update()
+                if stop_rotation[0]:
+                    break
+                try:
+                    welcome_text.opacity = 1 - (i / 10)
+                    page.update()
+                except (RuntimeError, Exception):
+                    # Event loop closed or page no longer available
+                    stop_rotation[0] = True
+                    break
                 time.sleep(0.05)
+            
+            if stop_rotation[0]:
+                break
+                
             # Change message
             message_index[0] = (message_index[0] + 1) % len(welcome_messages)
             welcome_text.value = welcome_messages[message_index[0]]
+            
             # Fade in
             for i in range(10):
-                welcome_text.opacity = i / 10
-                page.update()
+                if stop_rotation[0]:
+                    break
+                try:
+                    welcome_text.opacity = i / 10
+                    page.update()
+                except (RuntimeError, Exception):
+                    # Event loop closed or page no longer available
+                    stop_rotation[0] = True
+                    break
                 time.sleep(0.05)
     
     # Start rotation thread
@@ -69,7 +95,8 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         border_color=FIELD_BORDER,
         focused_border_color=ORANGE,
         border_radius=10,
-        label_style=ft.TextStyle(color=DARK_GREEN)
+        label_style=ft.TextStyle(color=DARK_GREEN),
+        error_style=ft.TextStyle(color="#FF0000", size=12)
     )
 
     # Password field with error state
@@ -84,7 +111,8 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         border_color=FIELD_BORDER,
         focused_border_color=ORANGE,
         border_radius=10,
-        label_style=ft.TextStyle(color=DARK_GREEN)
+        label_style=ft.TextStyle(color=DARK_GREEN),
+        error_style=ft.TextStyle(color="#FF0000", size=12)
     )
     
     # Wrap fields in containers with shadows for depth
@@ -166,7 +194,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
 
     def set_field_error(field, error_message):
         """Set error state on a field with red border"""
-        field.border_color = "red"
+        field.border_color = "#FF0000"
         field.error_text = error_message
         field.border_width = 2
         page.update()
@@ -187,26 +215,134 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
             show_snackbar(page, "Please enter your password")
             return
 
-        user = authenticate_user(email_field.value, password_field.value)
+        # Show loading screen only after validation passes
+        loading = show_login_loading(page, "Logging in...")
+        
+        def authenticate():
+            try:
+                user = authenticate_user(email_field.value, password_field.value)
+                
+                if user is None:
+                    # Only highlight password field for security (don't reveal if email exists)
+                    hide_login_loading(page, loading)
+                    set_field_error(password_field, "Invalid credentials")
+                    show_snackbar(page, "Invalid email or password")
+                    return
 
-        if user is None:
-            # Only highlight password field for security (don't reveal if email exists)
-            set_field_error(password_field, "Invalid credentials")
-            show_snackbar(page, "Invalid email or password")
-            return
+                if isinstance(user, dict) and "locked" in user:
+                    hide_login_loading(page, loading)
+                    if not lockout_container.visible:
+                        locked_until = datetime.fromisoformat(user["locked_until"])
+                        lockout_container.visible = True
+                        threading.Thread(target=countdown_timer, args=(locked_until,), daemon=True).start()
+                    show_snackbar(page, f"Account locked due to too many failed attempts")
+                    return
 
-        if isinstance(user, dict) and "locked" in user:
-            if not lockout_container.visible:
-                locked_until = datetime.fromisoformat(user["locked_until"])
-                lockout_container.visible = True
-                threading.Thread(target=countdown_timer, args=(locked_until,), daemon=True).start()
-            show_snackbar(page, f"Account locked due to too many failed attempts")
-            return
+                current_user["user"] = user
+                cart.clear()  # Clear cart on login
+                hide_login_loading(page, loading)
+                show_snackbar(page, f"Welcome back, {user['full_name']}!")
+                goto_dashboard(user["role"])
+            except Exception as ex:
+                hide_login_loading(page, loading)
+                show_snackbar(page, f"Login error: {str(ex)}", error=True)
+        
+        # Run authentication in background
+        threading.Thread(target=authenticate, daemon=True).start()
 
-        current_user["user"] = user
-        cart.clear()  # Clear cart on login
-        show_snackbar(page, f"Welcome back, {user['full_name']}!")
-        goto_dashboard(user["role"])
+    def google_login_click(e):
+        """Handle Google OAuth login by redirecting to Google"""
+        def perform_google_login():
+            try:
+                # Start callback server
+                if oauth_handler:
+                    oauth_handler.start_callback_server()
+                
+                # Show loading dialog
+                status_dialog = ft.AlertDialog(
+                    title=ft.Text("Signing in with Google..."),
+                    content=ft.Column([
+                        ft.ProgressRing(),
+                        ft.Text("Waiting for authorization. A browser window should have opened.", size=12),
+                    ], spacing=10, alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, width=300),
+                )
+                page.dialog = status_dialog
+                status_dialog.open = True
+                page.update()
+                
+                # Get authorization URL with state
+                auth_url, state = oauth_handler.get_authorization_url()
+                
+                # Open browser to Google OAuth
+                page.launch_url(auth_url)
+                
+                # Wait for auth code from callback server (max 5 minutes)
+                import time
+                max_wait = 300
+                start_time = time.time()
+                
+                while state not in oauth_handler.auth_codes and (time.time() - start_time) < max_wait:
+                    time.sleep(1)
+                
+                # Close dialog
+                if page.dialog:
+                    page.dialog.open = False
+                    page.update()
+                
+                if state not in oauth_handler.auth_codes:
+                    show_snackbar(page, "Authorization timeout. Please try again.", error=True)
+                    return
+                
+                # Exchange code for token and get user info
+                if not oauth_handler.exchange_code_for_token(state):
+                    show_snackbar(page, "Failed to authenticate with Google.", error=True)
+                    return
+                
+                user_info = oauth_handler.get_user_info(state)
+                if not user_info:
+                    show_snackbar(page, "Failed to get user info from Google.", error=True)
+                    return
+                
+                # Get user info
+                email = user_info.get('email')
+                name = user_info.get('name', 'Google User')
+                
+                # Check if user exists
+                from models.models import Session, User
+                session = Session()
+                try:
+                    user = session.query(User).filter_by(email=email).first()
+                    
+                    if not user:
+                        # Auto-register
+                        success, msg = register_user(email, "", name, "customer")
+                        if not success:
+                            show_snackbar(page, f"Registration failed: {msg}")
+                            return
+                        user = session.query(User).filter_by(email=email).first()
+                    
+                    if user:
+                        current_user["user"] = {
+                            "id": user.id,
+                            "full_name": user.full_name,
+                            "email": user.email,
+                            "role": user.role if hasattr(user, 'role') else "customer"
+                        }
+                        cart.clear()
+                        show_snackbar(page, f"Welcome, {name}!")
+                        goto_dashboard(current_user["user"]["role"])
+                finally:
+                    session.close()
+                        
+            except Exception as ex:
+                if page.dialog:
+                    page.dialog.open = False
+                    page.update()
+                show_snackbar(page, f"Error: {str(ex)}", error=True)
+                import traceback
+                traceback.print_exc()
+        
+        threading.Thread(target=perform_google_login, daemon=True).start()
 
     login_container = ft.Container(
         content=ft.Column(
@@ -214,7 +350,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                 ft.Container(height=20),
 
                 ft.Image(
-                    src="assets/burger.PNG",
+                    src_base64=get_base64_image("assets/burger.PNG"),
                     width=110,
                     height=110,
                     fit=ft.ImageFit.CONTAIN
@@ -267,7 +403,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                                 height=45,
                                 bgcolor=CREAM,
                                 color=DARK_GREEN,
-                                on_click=lambda e: page.snackbar.show("Google login coming soon"),
+                                on_click=lambda e: google_login_click(e),
                                 elevation=2,
                                 style=ft.ButtonStyle(
                                     shape=ft.RoundedRectangleBorder(radius=8)
