@@ -6,16 +6,17 @@ import threading
 import urllib.parse
 import uuid
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class GoogleOAuthHandler:
     def __init__(self):
-        with open('client_secret.json', 'r') as f:
-            self.config = json.load(f)['web']
-        
+        self.config = self._load_config()
+
         self.client_id = self.config['client_id']
         self.client_secret = self.config['client_secret']
-        # Use environment variable if set, otherwise use config
-        self.redirect_uri = os.getenv('OAUTH_CALLBACK_URL', self.config['redirect_uris'][0])
+        self.redirect_uri = self.config['redirect_uri']
         self.auth_uri = self.config['auth_uri']
         self.token_uri = self.config['token_uri']
         
@@ -23,6 +24,39 @@ class GoogleOAuthHandler:
         self.auth_codes = {}
         self.tokens = {}  # Store tokens by state
         self.server = None
+
+    def _load_config(self):
+        env_client_id = os.getenv('GOOGLE_CLIENT_ID')
+        env_client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+        env_redirect_uri = os.getenv('OAUTH_CALLBACK_URL')
+        env_auth_uri = os.getenv('GOOGLE_AUTH_URI', 'https://accounts.google.com/o/oauth2/auth')
+        env_token_uri = os.getenv('GOOGLE_TOKEN_URI', 'https://oauth2.googleapis.com/token')
+
+        if env_client_id and env_client_secret:
+            return {
+                'client_id': env_client_id,
+                'client_secret': env_client_secret,
+                'redirect_uri': env_redirect_uri or 'http://localhost:9000',
+                'auth_uri': env_auth_uri,
+                'token_uri': env_token_uri,
+            }
+
+        if os.path.exists('client_secret.json'):
+            with open('client_secret.json', 'r', encoding='utf-8') as f:
+                file_config = json.load(f)['web']
+
+            return {
+                'client_id': file_config['client_id'],
+                'client_secret': file_config['client_secret'],
+                'redirect_uri': env_redirect_uri or file_config['redirect_uris'][0],
+                'auth_uri': file_config['auth_uri'],
+                'token_uri': file_config['token_uri'],
+            }
+
+        raise RuntimeError(
+            'Google OAuth config not found. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env, '
+            'or provide client_secret.json locally.'
+        )
     
     def get_authorization_url(self, state=None):
         """Generate the Google OAuth authorization URL with unique state"""

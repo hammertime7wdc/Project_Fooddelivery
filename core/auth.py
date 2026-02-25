@@ -3,9 +3,16 @@ import bcrypt
 from datetime import datetime, timedelta
 from models.models import Session, User
 from .database import log_action
+from .email_sender import get_email_sender
+import hashlib
+import secrets
 
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 1
+VERIFICATION_TOKEN_EXPIRY_MINUTES = 10
+VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
+PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 10
+PASSWORD_RESET_RESEND_COOLDOWN_SECONDS = 60
 
 
 # ========== PASSWORD FUNCTIONS ==========
@@ -17,6 +24,14 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _generate_otp_code() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
 
 
 import re
@@ -181,6 +196,9 @@ def authenticate_user(email: str, password: str):
                 log_action(user.id, "LOGIN_FAILED", f"Wrong password (attempt {new_attempts})")
             return None
 
+        if getattr(user, "email_verified", 1) == 0:
+            return {"unverified": True, "email": user.email}
+
         # ──────────────────────── SUCCESSFUL LOGIN ────────────────────────
         user.failed_login_attempts = 0
         user.locked_until = None
@@ -193,22 +211,43 @@ def authenticate_user(email: str, password: str):
         session.close()
 
 
-def register_user(email: str, password: str, full_name: str, role: str = "customer"):
+def register_user(email: str, password: str, full_name: str, role: str = "customer", require_verification: bool = True):
     session = Session()
     try:
         existing = session.query(User).filter_by(email=email).first()
         if existing:
             return False, "Email already exists"
+
+        email_sender = get_email_sender()
+        now = datetime.now()
+        token = _generate_otp_code() if require_verification else None
         
         hashed_password = hash_password(password)
         user = User(
             email=email,
             password=hashed_password,
+            email_verified=0 if require_verification else 1,
+            verification_token_hash=_hash_token(token) if token else None,
+            verification_token_expires_at=(now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES)) if token else None,
+            verification_sent_at=now if token else None,
             full_name=full_name,
             role=role
         )
         session.add(user)
         session.commit()
+
+        if require_verification:
+            if not email_sender.is_configured():
+                return False, "Email service is not configured"
+            sent, send_msg = email_sender.send_verification_email(
+                to_email=email,
+                full_name=full_name,
+                token=token,
+                expiry_minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES,
+            )
+            if not sent:
+                return False, f"Failed to send verification email: {send_msg}"
+            return True, "Verification code sent. Please check your email."
         
         log_action(user.id, "USER_REGISTERED", f"New user registered: {email}")
         return True, "User registered successfully"
@@ -382,5 +421,182 @@ def change_password(user_id: int, old_password: str, new_password: str):
     except Exception as e:
         session.rollback()
         return False, str(e)
+    finally:
+        session.close()
+
+
+def verify_current_password(user_id: int, current_password: str):
+    session = Session()
+    try:
+        user = session.query(User).filter_by(id=user_id, is_active=1).first()
+        if not user:
+            return False, "User not found"
+        if not verify_password((current_password or "").strip(), user.password):
+            return False, "Current password is incorrect"
+        return True, "Current password verified"
+    finally:
+        session.close()
+
+
+def request_password_reset_code(email: str):
+    session = Session()
+    try:
+        valid_email, msg = validate_email(email)
+        if not valid_email:
+            return False, msg
+
+        user = session.query(User).filter_by(email=email, is_active=1).first()
+        if not user:
+            return False, "No account found with this email"
+
+        email_sender = get_email_sender()
+        if not email_sender.is_configured():
+            return False, "Email service is not configured"
+
+        now = datetime.now()
+        if user.reset_sent_at:
+            elapsed = (now - user.reset_sent_at).total_seconds()
+            if elapsed < PASSWORD_RESET_RESEND_COOLDOWN_SECONDS:
+                remaining = int(PASSWORD_RESET_RESEND_COOLDOWN_SECONDS - elapsed)
+                return False, f"Please wait {remaining}s before requesting another code"
+
+        token = _generate_otp_code()
+        user.reset_token_hash = _hash_token(token)
+        user.reset_token_expires_at = now + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRY_MINUTES)
+        user.reset_sent_at = now
+        session.commit()
+
+        sent, send_msg = email_sender.send_password_reset_email(
+            to_email=user.email,
+            full_name=user.full_name,
+            token=token,
+            expiry_minutes=PASSWORD_RESET_TOKEN_EXPIRY_MINUTES,
+        )
+        if not sent:
+            return False, f"Failed to send reset email: {send_msg}"
+
+        return True, "Reset code sent. Please check your email."
+    except Exception:
+        session.rollback()
+        return False, "Failed to request reset code"
+    finally:
+        session.close()
+
+
+def reset_password_with_code(email: str, code: str, new_password: str):
+    session = Session()
+    try:
+        valid_email, msg = validate_email(email)
+        if not valid_email:
+            return False, msg
+
+        valid_password, pwd_msg = validate_password(new_password)
+        if not valid_password:
+            return False, pwd_msg
+
+        user = session.query(User).filter_by(email=email, is_active=1).first()
+        if not user:
+            return False, "No account found with this email"
+
+        if not user.reset_token_hash or not user.reset_token_expires_at:
+            return False, "No code has been requested. Please request a new reset code."
+
+        if datetime.now() > user.reset_token_expires_at:
+            return False, "Verification code has expired. Please request a new code."
+
+        if _hash_token(code.strip()) != user.reset_token_hash:
+            return False, "Incorrect verification code. Please check and try again."
+
+        user.password = hash_password(new_password)
+        user.reset_token_hash = None
+        user.reset_token_expires_at = None
+        user.reset_sent_at = None
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        session.commit()
+
+        log_action(user.id, "PASSWORD_RESET", "User reset password using OTP")
+        return True, "Password reset successful. You can now log in."
+    except Exception:
+        session.rollback()
+        return False, "Failed to reset password"
+    finally:
+        session.close()
+
+
+def verify_signup_code(email: str, code: str):
+    session = Session()
+    try:
+        user = session.query(User).filter_by(email=email, is_active=1).first()
+        if not user:
+            return False, "No signup request found for this email"
+
+        if getattr(user, "email_verified", 1) == 1:
+            return True, "Email already verified"
+
+        if not user.verification_token_hash or not user.verification_token_expires_at:
+            return False, "No verification code has been sent."
+
+        if datetime.now() > user.verification_token_expires_at:
+            return False, "Verification code has expired. Please request a new code."
+
+        if _hash_token(code.strip()) != user.verification_token_hash:
+            return False, "Incorrect verification code. Please check and try again."
+
+        user.email_verified = 1
+        user.verification_token_hash = None
+        user.verification_token_expires_at = None
+        user.verification_sent_at = None
+        session.commit()
+
+        log_action(user.id, "EMAIL_VERIFIED", f"Email verified: {email}")
+        return True, "Email verified successfully."
+    except Exception:
+        session.rollback()
+        return False, "Failed to verify code"
+    finally:
+        session.close()
+
+
+def resend_signup_code(email: str):
+    session = Session()
+    try:
+        user = session.query(User).filter_by(email=email, is_active=1).first()
+        if not user:
+            return False, "No signup request found for this email"
+
+        if getattr(user, "email_verified", 1) == 1:
+            return True, "Email already verified"
+
+        email_sender = get_email_sender()
+        if not email_sender.is_configured():
+            return False, "Email service is not configured"
+
+        now = datetime.now()
+        if user.verification_sent_at:
+            elapsed = (now - user.verification_sent_at).total_seconds()
+            if elapsed < VERIFICATION_RESEND_COOLDOWN_SECONDS:
+                remaining = int(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed)
+                return False, f"Please wait {remaining}s before requesting another code"
+
+        token = _generate_otp_code()
+        user.verification_token_hash = _hash_token(token)
+        user.verification_token_expires_at = now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES)
+        user.verification_sent_at = now
+        session.commit()
+
+        sent, send_msg = email_sender.send_verification_email(
+            to_email=user.email,
+            full_name=user.full_name,
+            token=token,
+            expiry_minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES,
+        )
+        if not sent:
+            return False, f"Failed to resend verification email: {send_msg}"
+
+        return True, "Verification code resent. Please check your email."
+    except Exception:
+        session.rollback()
+        return False, "Failed to resend verification code"
     finally:
         session.close()
