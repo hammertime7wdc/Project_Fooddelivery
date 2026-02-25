@@ -5,7 +5,18 @@ import shutil
 import os
 import imghdr
 import time
-from core.auth import get_user_by_id, update_user_profile, change_password, validate_password, validate_full_name, validate_email, get_password_strength
+from core.auth import (
+    get_user_by_id,
+    update_user_profile,
+    change_password,
+    validate_password,
+    validate_full_name,
+    validate_email,
+    get_password_strength,
+    request_password_reset_code,
+    reset_password_with_code,
+    verify_current_password,
+)
 from utils import show_snackbar
 from .loading_screen import show_loading, hide_loading
 
@@ -171,7 +182,7 @@ def handle_pic_pick(e, current_user, profile_pic_preview, uploaded_pic, page):
 
 
 def save_profile(page, current_user, name_field, email_field, address_field, contact_field, 
-                 name_error, email_error, uploaded_pic, back_callback):
+                 name_error, uploaded_pic, back_callback):
     """Save profile changes"""
     has_error = False
     
@@ -185,16 +196,6 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
         name_error.visible = False
         name_field.border_color = "green"
     
-    valid, msg = validate_email(email_field.value)
-    if not valid:
-        email_error.value = msg
-        email_error.visible = True
-        email_field.border_color = "red"
-        has_error = True
-    else:
-        email_error.visible = False
-        email_field.border_color = "green"
-    
     if has_error:
         page.update()
         return
@@ -207,11 +208,17 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
     loading = show_loading(page, "Saving profile...")
     
     async def _save_task():
+        user = get_user_by_id(current_user["user"]["id"])
+        if not user:
+            hide_loading(page, loading)
+            show_snackbar(page, "User not found", error=True)
+            return
+
         success, msg = update_user_profile(
             current_user["user"]["id"],
             current_user["user"]["id"],
             name_field.value.strip(),
-            email_field.value.strip(),
+            user["email"],
             address=address_field.value.strip() if address_field.value else None,
             contact=contact_field.value.strip() if contact_field.value else None,
             profile_pic=uploaded_pic["data"],
@@ -223,7 +230,7 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
         
         if success:
             current_user["user"]["full_name"] = name_field.value.strip()
-            current_user["user"]["email"] = email_field.value.strip()
+            current_user["user"]["email"] = user["email"]
             current_user["user"]["address"] = address_field.value.strip() if address_field.value else None
             current_user["user"]["contact"] = contact_field.value.strip() if contact_field.value else None
             current_user["user"]["profile_picture"] = uploaded_pic["data"]
@@ -231,8 +238,6 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
             
             name_error.value = ""
             name_error.visible = False
-            email_error.value = ""
-            email_error.visible = False
             page.update()
     
     # Run save operation asynchronously
@@ -282,3 +287,197 @@ def change_password_handler(page, current_user, current_password, new_password, 
     
     # Run password change asynchronously
     page.run_task(_change_task)
+
+
+def send_profile_reset_code_handler(
+    page,
+    current_user,
+    current_password,
+    new_password,
+    confirm_password,
+    code_field,
+    code_info_text,
+    verify_button,
+    resend_button,
+):
+    """Send OTP reset code after validating current password and new password fields."""
+    validation_error_message = "Please complete all required fields with valid data before sending a code."
+
+    def clear_field_error(field):
+        field.error_text = None
+        field.border_color = "#b5a89a"
+        field.border_width = 1
+
+    def set_field_error(field, message: str):
+        field.error_text = message
+        field.border_color = "#FF0000"
+        field.border_width = 2
+
+    user_id = current_user.get("user", {}).get("id")
+    email_value = (current_user.get("user", {}).get("email") or "").strip().lower()
+    current_password_value = (current_password.value or "").strip()
+    new_password_value = (new_password.value or "").strip()
+    confirm_password_value = (confirm_password.value or "").strip()
+
+    for field in (current_password, new_password, confirm_password):
+        clear_field_error(field)
+    page.update()
+
+    if not user_id:
+        show_snackbar(page, "User not found", error=True)
+        return
+
+    if not email_value:
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    if not current_password_value:
+        set_field_error(current_password, "Please enter your current password")
+        page.update()
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    if not new_password_value or not confirm_password_value:
+        if not new_password_value:
+            set_field_error(new_password, "Please enter a new password")
+        if not confirm_password_value:
+            set_field_error(confirm_password, "Please confirm your new password")
+        page.update()
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    valid_password, pwd_msg = validate_password(new_password_value)
+    if not valid_password:
+        set_field_error(new_password, pwd_msg)
+        page.update()
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    if new_password_value != confirm_password_value:
+        set_field_error(confirm_password, "Passwords do not match")
+        page.update()
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    if current_password_value == new_password_value:
+        set_field_error(new_password, "Must be different from current password")
+        page.update()
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    verified, verify_msg = verify_current_password(user_id, current_password_value)
+    if not verified:
+        set_field_error(current_password, verify_msg)
+        page.update()
+        show_snackbar(page, validation_error_message, error=True)
+        return
+
+    success, msg = request_password_reset_code(email_value)
+    if success:
+        clear_field_error(current_password)
+        clear_field_error(new_password)
+        clear_field_error(confirm_password)
+        code_field.visible = True
+        code_info_text.value = f"Code sent to {email_value}. Expires in 10 minutes."
+        code_info_text.visible = True
+        verify_button.visible = True
+        resend_button.visible = True
+        show_snackbar(page, msg, success=True)
+    else:
+        show_snackbar(page, msg, error=True)
+
+    page.update()
+
+
+def reset_password_with_profile_code_handler(
+    page,
+    current_user,
+    current_password,
+    code_field,
+    new_password,
+    confirm_password,
+    password_strength_bar,
+    password_strength_text,
+    code_info_text,
+    verify_button,
+    resend_button,
+):
+    """Reset password from profile screen using current password + OTP flow."""
+    user_id = current_user.get("user", {}).get("id")
+    email_value = (current_user.get("user", {}).get("email") or "").strip().lower()
+    current_password_value = (current_password.value or "").strip()
+    code_value = (code_field.value or "").strip()
+    new_password_value = (new_password.value or "").strip()
+    confirm_password_value = (confirm_password.value or "").strip()
+
+    if not user_id:
+        show_snackbar(page, "User not found", error=True)
+        return
+
+    if not email_value:
+        show_snackbar(page, "No email found for this account", error=True)
+        return
+
+    if not current_password_value:
+        show_snackbar(page, "Please enter your current password", error=True)
+        return
+
+    if len(code_value) != 6 or not code_value.isdigit():
+        show_snackbar(page, "Please enter a valid 6-digit code", error=True)
+        return
+
+    valid_password, pwd_msg = validate_password(new_password_value)
+    if not valid_password:
+        show_snackbar(page, pwd_msg, error=True)
+        return
+
+    if new_password_value != confirm_password_value:
+        show_snackbar(page, "Passwords do not match", error=True)
+        return
+
+    if current_password_value == new_password_value:
+        show_snackbar(page, "New password must be different from current password", error=True)
+        return
+
+    verified, verify_msg = verify_current_password(user_id, current_password_value)
+    if not verified:
+        show_snackbar(page, verify_msg, error=True)
+        return
+
+    success, msg = reset_password_with_code(email_value, code_value, new_password_value)
+    if success:
+        show_snackbar(page, "Password reset successful!", success=True)
+        code_field.error_text = None
+        code_field.border_color = "green"
+        code_field.border_width = 1
+        code_field.value = ""
+        new_password.value = ""
+        confirm_password.value = ""
+        code_info_text.visible = False
+        code_info_text.value = ""
+        code_field.visible = False
+        verify_button.visible = False
+        resend_button.visible = False
+        password_strength_bar.value = 0
+        password_strength_bar.color = "grey"
+        password_strength_bar.visible = False
+        password_strength_text.value = ""
+        password_strength_text.color = "grey"
+        password_strength_text.visible = False
+    else:
+        short_msg = msg
+        if "No account found" in msg:
+            short_msg = "Account not found"
+        elif "No code has been requested" in msg:
+            short_msg = "No code sent"
+        elif "expired" in msg.lower():
+            short_msg = "Code expired"
+        elif "Incorrect" in msg:
+            short_msg = "Wrong code"
+
+        code_field.error_text = short_msg
+        code_field.border_color = "red"
+        code_field.border_width = 2
+        show_snackbar(page, msg, error=True)
+
+    page.update()

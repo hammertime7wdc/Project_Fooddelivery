@@ -2,11 +2,16 @@ import flet as ft
 from core.database import create_order
 from utils import show_snackbar, TEXT_LIGHT, TEXT_DARK, FIELD_BG, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 from screens.browse_menu.image_utils import load_image_from_binary
+from screens.login_loading import show_login_loading, hide_login_loading
 
 def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_confirmation):
+    viewport_width = page.width if page.width else 390
+    content_width = min(max(viewport_width - 36, 280), 430)
+    field_width = content_width - 28
+    cart_list_height = 260 if viewport_width <= 420 else 300
     
     # Create containers that will be updated
-    cart_items_container = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO)
+    cart_items_container = ft.ListView(spacing=12, padding=0, auto_scroll=False, expand=True)
     subtotal_text = ft.Text("₱0.00", size=12, color=TEXT_DARK, weight=ft.FontWeight.W_500, text_align=ft.TextAlign.RIGHT)
     total_text = ft.Text("₱0.00", size=16, weight=ft.FontWeight.BOLD, color=ORANGE, text_align=ft.TextAlign.RIGHT)
     
@@ -16,21 +21,18 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         total = 0
 
         if not cart:
-            # Empty cart state
             empty_state = ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Icon(name=ft.Icons.SHOPPING_CART_OUTLINED, size=80, color=ORANGE),
-                        ft.Container(height=10),
-                        ft.Text("Your cart is empty", size=18, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
-                        ft.Text("Add items from the menu to get started", size=14, weight=ft.FontWeight.W_500, color=ACCENT_DARK),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    spacing=8
-                ),
-                height=250,
-                alignment=ft.alignment.center
+                content=ft.Column([
+                    ft.Icon(name=ft.Icons.SHOPPING_CART_OUTLINED, size=80, color=ORANGE),
+                    ft.Container(height=10),
+                    ft.Text("Your cart is empty", size=18, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                    ft.Text("Add items from the menu to get started", size=14, weight=ft.FontWeight.W_500, color=ACCENT_DARK),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, alignment=ft.MainAxisAlignment.CENTER, spacing=8),
+                height=220,
+                alignment=ft.alignment.center,
+                border_radius=16,
+                bgcolor=FIELD_BG,
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=16, color="black12", offset=ft.Offset(0, 6)),
             )
             cart_items_container.controls.append(empty_state)
             subtotal_text.value = "₱0.00"
@@ -41,82 +43,54 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         for idx, item in enumerate(cart):
             item_total = item["price"] * item["quantity"]
             total += item_total
-
-            # Load image from binary data
             image_widget = load_image_from_binary(item) if item.get("image") else None
 
-            # Remove item handler
             def remove_item(e, item_idx=idx):
                 if 0 <= item_idx < len(cart):
                     del cart[item_idx]
                     refresh_cart()
 
-            # Item card
             item_card = ft.Container(
-                content=ft.Row(
-                    [
-                        # Product image or icon
-                        ft.Container(
-                            content=image_widget if image_widget else ft.Icon(
-                                name=ft.Icons.FASTFOOD,
-                                size=28,
-                                color=ORANGE
-                            ),
-                            width=50,
-                            height=50,
-                            bgcolor="#FFF5E6",
-                            border_radius=25,
-                            alignment=ft.alignment.center,
-                            clip_behavior=ft.ClipBehavior.HARD_EDGE
+                content=ft.Row([
+                    ft.Container(
+                        content=image_widget if image_widget else ft.Icon(
+                            name=ft.Icons.FASTFOOD,
+                            size=32,
+                            color=ORANGE
                         ),
-                        # Quantity and name
-                        ft.Text(
-                            f"{item['quantity']} ×",
-                            size=12,
-                            weight=ft.FontWeight.W_500,
-                            color=TEXT_DARK,
-                            width=35
-                        ),
-                        ft.Text(
-                            item['name'],
-                            size=12,
-                            weight=ft.FontWeight.W_400,
-                            color=TEXT_DARK,
-                            expand=True,
-                            max_lines=1
-                        ),
-                        # Price
-                        ft.Text(
-                            f"₱{item_total:.2f}",
-                            size=12,
-                            weight=ft.FontWeight.W_500,
-                            color=ORANGE,
-                            text_align=ft.TextAlign.RIGHT,
-                            width=60
-                        ),
-                        # Remove button
-                        ft.IconButton(
-                            icon=ft.Icons.CLOSE,
-                            icon_size=16,
-                            icon_color="red700",
-                            on_click=remove_item,
-                            padding=2
-                        ),
-                    ],
-                    spacing=6,
-                    alignment=ft.MainAxisAlignment.START,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER
-                ),
-                padding=10,
+                        width=56,
+                        height=56,
+                        bgcolor="#FFF5E6",
+                        border_radius=28,
+                        alignment=ft.alignment.center,
+                        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                        margin=ft.margin.only(right=10)
+                    ),
+                    ft.Column([
+                        ft.Row([
+                            ft.Text(f"{item['quantity']} ×", size=13, weight=ft.FontWeight.W_600, color=ACCENT_DARK),
+                            ft.Text(item['name'], size=14, weight=ft.FontWeight.W_500, color=TEXT_DARK, expand=True, max_lines=1),
+                        ], spacing=6, alignment=ft.MainAxisAlignment.START),
+                        ft.Text(f"₱{item_total:.2f}", size=13, weight=ft.FontWeight.W_600, color=ORANGE),
+                    ], spacing=2, expand=True),
+                    ft.IconButton(
+                        icon=ft.Icons.CLOSE,
+                        icon_size=18,
+                        icon_color="red700",
+                        on_click=remove_item,
+                        padding=4
+                    ),
+                ], spacing=10, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=14,
                 bgcolor=TEXT_LIGHT,
-                border_radius=8,
-                border=ft.border.all(1, FIELD_BORDER),
-                width=400
+                border_radius=14,
+                border=ft.border.all(1.5, FIELD_BORDER),
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color="black12", offset=ft.Offset(0, 2)),
+                margin=ft.margin.only(bottom=2),
+                width=content_width
             )
-            
             cart_items_container.controls.append(item_card)
 
-        # Update totals
         subtotal_text.value = f"₱{total:.2f}"
         total_text.value = f"₱{total:.2f}"
         page.update()
@@ -175,7 +149,7 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
     name_field = ft.TextField(
         label="Full Name",
         value=current_user["user"]["full_name"], 
-        width=300,
+        width=field_width,
         bgcolor=TEXT_LIGHT,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
@@ -190,7 +164,7 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
     address_field = ft.TextField(
         label="Delivery Address",
         value=current_user["user"].get("address", ""), 
-        width=300,
+        width=field_width,
         bgcolor=TEXT_LIGHT,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
@@ -205,7 +179,7 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
     contact_field = ft.TextField(
         label="Contact Number",
         value=current_user["user"].get("contact", ""), 
-        width=300,
+        width=field_width,
         keyboard_type=ft.KeyboardType.PHONE,
         bgcolor=TEXT_LIGHT,
         color=TEXT_DARK,
@@ -220,31 +194,23 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
 
     # Order summary box - matching reference design with dynamic values
     summary_box = ft.Container(
-        content=ft.Column(
-            [
-                ft.Row(
-                    [
-                        ft.Text("Subtotal", size=12, color=TEXT_DARK, weight=ft.FontWeight.W_400, width=80),
-                        subtotal_text
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                ),
-                ft.Divider(height=10, color=FIELD_BORDER),
-                ft.Row(
-                    [
-                        ft.Text("Total", size=14, weight=ft.FontWeight.BOLD, color=TEXT_DARK, width=80),
-                        total_text
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                )
-            ],
-            spacing=0
-        ),
-        padding=12,
+        content=ft.Column([
+            ft.Row([
+                ft.Text("Subtotal", size=13, color=TEXT_DARK, weight=ft.FontWeight.W_400),
+                subtotal_text
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Divider(height=10, color=FIELD_BORDER),
+            ft.Row([
+                ft.Text("Total", size=15, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                total_text
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        ], spacing=4),
+        padding=16,
         bgcolor=TEXT_LIGHT,
-        border_radius=12,
+        border_radius=14,
         border=ft.border.all(1.5, FIELD_BORDER),
-        width=400
+        shadow=ft.BoxShadow(spread_radius=1, blur_radius=12, color="black12", offset=ft.Offset(0, 2)),
+        width=content_width
     )
 
     def place_order(e):
@@ -255,38 +221,55 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
             show_snackbar(page, "Please fill delivery details")
             return
 
+        checkout_btn.disabled = True
+        loading_overlay = show_login_loading(page, "Placing your order...")
+        page.update()
+
         # Extract total from total_text (format: "₱123.45")
-        total_amount = float(total_text.value.replace("₱", ""))
-        
-        create_order(
-            current_user["user"]["id"],
-            name_field.value,
-            address_field.value,
-            contact_field.value,
-            cart,
-            total_amount,
-            selected_payment["value"]
-        )
-        cart.clear()
-        refresh_cart()  # Update display to show empty cart
-        show_snackbar(page, "Order placed successfully!")
-        goto_confirmation(e)
+        try:
+            total_amount = float(total_text.value.replace("₱", ""))
+
+            create_order(
+                current_user["user"]["id"],
+                name_field.value,
+                address_field.value,
+                contact_field.value,
+                cart,
+                total_amount,
+                selected_payment["value"]
+            )
+            cart.clear()
+            refresh_cart()  # Update display to show empty cart
+            hide_login_loading(page, loading_overlay)
+            show_snackbar(page, "Order placed successfully!")
+            goto_confirmation(e)
+        except Exception:
+            hide_login_loading(page, loading_overlay)
+            show_snackbar(page, "Failed to place order. Please try again.")
+        finally:
+            checkout_btn.disabled = False
+            hide_login_loading(page, loading_overlay)
+            page.update()
 
     # Checkout button
+    checkout_btn = ft.ElevatedButton(
+        "Checkout",
+        width=content_width,
+        height=52,
+        bgcolor=ACCENT_DARK,
+        color=TEXT_LIGHT,
+        on_click=place_order,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=12),
+            text_style=ft.TextStyle(size=16, weight=ft.FontWeight.W_600),
+            shadow_color=ACCENT_DARK,
+        )
+    )
+
     checkout_button = ft.Container(
-        content=ft.ElevatedButton(
-            "Checkout",
-            width=280,
-            height=50,
-            bgcolor=ACCENT_DARK,
-            color=TEXT_LIGHT,
-            on_click=place_order,
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=10),
-                text_style=ft.TextStyle(size=15, weight=ft.FontWeight.W_500)
-            )
-        ),
-        alignment=ft.alignment.center
+        content=checkout_btn,
+        alignment=ft.alignment.center,
+        margin=ft.margin.only(top=8, bottom=8)
     )
 
     # Initialize cart display
@@ -294,67 +277,64 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
 
     # Main layout
     return ft.Container(
-        content=ft.Column(
-            [
-                # Header
-                ft.Container(height=12),
-                
-                ft.TextButton(
-                    "← back to menu", 
-                    on_click=goto_menu, 
-                    style=ft.ButtonStyle(color=ACCENT_DARK)
-                ),
-                
-                ft.Container(height=8),
-
-                # Title
-                ft.Text("My cart", size=20, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
-                
-                ft.Container(height=16),
-                
-                # Cart items
-                ft.Container(
-                    content=cart_items_container,
-                    height=300,
-                    margin=ft.margin.only(bottom=10)
-                ),
-
-                ft.Container(height=20),
-                
-                # Order summary
-                summary_box,
-                
-                ft.Container(height=16),
-                
-                # Checkout button
-                checkout_button,
-                
-                ft.Container(height=20),
-                
-                # Payment Method section
-                ft.Text("Payment Method", size=14, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
-                ft.Container(height=8),
-                payment_chips_row,
-                
-                ft.Container(height=20),
-                
-                # Delivery Information section (initially hidden, can be shown on edit)
-                ft.Text("Delivery Information", size=14, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
-                
-                ft.Container(height=8),
-
-                name_field,
-                ft.Container(height=8),
-                address_field,
-                ft.Container(height=8),
-                contact_field,
-                
-                ft.Container(height=20),
-            ],
-            scroll=ft.ScrollMode.AUTO,
-            spacing=0,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER
-        ),
+        content=ft.Column([
+            ft.Container(height=10),
+            ft.TextButton(
+                "← back to menu",
+                on_click=goto_menu,
+                style=ft.ButtonStyle(color=ACCENT_DARK, text_style=ft.TextStyle(size=13, weight=ft.FontWeight.W_500))
+            ),
+            ft.Container(height=6),
+            ft.Text("My Cart", size=24, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+            ft.Container(height=10),
+            ft.Container(
+                content=cart_items_container,
+                height=cart_list_height,
+                bgcolor=FIELD_BG,
+                border_radius=16,
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color="black12", offset=ft.Offset(0, 2)),
+                margin=ft.margin.only(bottom=10),
+                width=content_width
+            ),
+            ft.Container(height=10),
+            summary_box,
+            checkout_button,
+            ft.Container(height=10),
+            ft.Divider(height=18, color=FIELD_BORDER),
+            ft.Text("Payment Method", size=15, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+            ft.Container(height=8),
+            ft.Container(
+                content=payment_chips_row,
+                bgcolor=FIELD_BG,
+                border_radius=12,
+                padding=10,
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color="black12", offset=ft.Offset(0, 2)),
+                margin=ft.margin.only(bottom=10),
+                width=content_width
+            ),
+            ft.Divider(height=18, color=FIELD_BORDER),
+            ft.Text("Delivery Information", size=15, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+            ft.Container(height=8),
+            ft.Container(
+                content=ft.Column([
+                    name_field,
+                    ft.Container(height=8),
+                    address_field,
+                    ft.Container(height=8),
+                    contact_field,
+                ], spacing=0),
+                bgcolor=FIELD_BG,
+                border_radius=12,
+                padding=14,
+                shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color="black12", offset=ft.Offset(0, 2)),
+                margin=ft.margin.only(bottom=10),
+                width=content_width
+            ),
+            ft.Container(height=10),
+        ],
+        scroll=ft.ScrollMode.AUTO,
+        spacing=0,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER),
         expand=True,
         padding=20,
         bgcolor=FIELD_BG

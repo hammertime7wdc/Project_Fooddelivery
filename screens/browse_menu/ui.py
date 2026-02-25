@@ -574,7 +574,7 @@ def create_search_field(load_menu_callback, selected_category):
         hint_text="Search menu...", 
         width=300, 
         on_change=lambda e: load_menu_callback(category=selected_category["value"], search=e.control.value, reset_page=True),
-        bgcolor=FIELD_BG,
+        bgcolor="white",
         color="#000000",
         border_color=FIELD_BORDER,
         border_radius=12,

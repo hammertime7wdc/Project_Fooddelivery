@@ -9,7 +9,7 @@ from core.image_utils import get_base64_image
 from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 from screens.login_loading import show_login_loading, hide_login_loading
 
-def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, oauth_handler=None, logout_message=None, session_timed_out=None, cause=None):
+def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, goto_verify=None, oauth_handler=None, logout_message=None, session_timed_out=None, cause=None):
     # Determine what message to show
     message_to_show = None
     if logout_message:
@@ -217,38 +217,41 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
 
         # Show loading screen only after validation passes
         loading = show_login_loading(page, "Logging in...")
-        
-        def authenticate():
-            try:
-                user = authenticate_user(email_field.value, password_field.value)
-                
-                if user is None:
-                    # Only highlight password field for security (don't reveal if email exists)
-                    hide_login_loading(page, loading)
-                    set_field_error(password_field, "Invalid credentials")
-                    show_snackbar(page, "Invalid email or password")
-                    return
 
-                if isinstance(user, dict) and "locked" in user:
-                    hide_login_loading(page, loading)
-                    if not lockout_container.visible:
-                        locked_until = datetime.fromisoformat(user["locked_until"])
-                        lockout_container.visible = True
-                        threading.Thread(target=countdown_timer, args=(locked_until,), daemon=True).start()
-                    show_snackbar(page, f"Account locked due to too many failed attempts")
-                    return
+        try:
+            user = authenticate_user(email_field.value, password_field.value)
 
-                current_user["user"] = user
-                cart.clear()  # Clear cart on login
+            if user is None:
+                # Only highlight password field for security (don't reveal if email exists)
                 hide_login_loading(page, loading)
-                show_snackbar(page, f"Welcome back, {user['full_name']}!")
-                goto_dashboard(user["role"])
-            except Exception as ex:
+                set_field_error(password_field, "Invalid credentials")
+                show_snackbar(page, "Invalid email or password")
+                return
+
+            if isinstance(user, dict) and "locked" in user:
                 hide_login_loading(page, loading)
-                show_snackbar(page, f"Login error: {str(ex)}", error=True)
-        
-        # Run authentication in background
-        threading.Thread(target=authenticate, daemon=True).start()
+                if not lockout_container.visible:
+                    locked_until = datetime.fromisoformat(user["locked_until"])
+                    lockout_container.visible = True
+                    threading.Thread(target=countdown_timer, args=(locked_until,), daemon=True).start()
+                show_snackbar(page, f"Account locked due to too many failed attempts")
+                return
+
+            if isinstance(user, dict) and user.get("unverified"):
+                hide_login_loading(page, loading)
+                show_snackbar(page, "Please verify your email before logging in")
+                if goto_verify:
+                    goto_verify(user.get("email") or email_field.value)
+                return
+
+            current_user["user"] = user
+            cart.clear()  # Clear cart on login
+            hide_login_loading(page, loading)
+            show_snackbar(page, f"Welcome back, {user['full_name']}!")
+            goto_dashboard(user["role"])
+        except Exception as ex:
+            hide_login_loading(page, loading)
+            show_snackbar(page, f"Login error: {str(ex)}", error=True)
 
     def google_login_click(e):
         """Handle Google OAuth login by redirecting to Google"""
@@ -315,7 +318,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                     
                     if not user:
                         # Auto-register
-                        success, msg = register_user(email, "", name, "customer")
+                        success, msg = register_user(email, "", name, "customer", require_verification=False)
                         if not success:
                             show_snackbar(page, f"Registration failed: {msg}")
                             return
@@ -347,96 +350,118 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
     login_container = ft.Container(
         content=ft.Column(
             [
-                ft.Container(height=20),
-
-                ft.Image(
-                    src_base64=get_base64_image("assets/burger.PNG"),
-                    width=110,
-                    height=110,
-                    fit=ft.ImageFit.CONTAIN
-                ),
-
-                ft.Container(height=15),
-                ft.Text("FOOD DELIVERY", size=28, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
-                welcome_text,
-
-                ft.Container(height=20),
-
+                ft.Container(height=24),
                 ft.Container(
                     content=ft.Column(
                         [
-                            email_container,
-                            ft.Container(height=10),
-                            password_container,
-                            ft.Container(height=10),
-                            lockout_container,
-
-                            ft.Container(height=20),
-
-                            ft.ElevatedButton(
-                                "Log in",
-                                width=280,
-                                height=45,
-                                bgcolor=ACCENT_DARK,
-                                color=CREAM,
-                                on_click=login_click,
-                                elevation=4,
-                                style=ft.ButtonStyle(
-                                    shape=ft.RoundedRectangleBorder(radius=8)
-                                )
+                            ft.Image(
+                                src_base64=get_base64_image("assets/burger.PNG"),
+                                width=92,
+                                height=92,
+                                fit=ft.ImageFit.CONTAIN
                             ),
-
-                            ft.Container(height=15),
-
+                            ft.Container(height=8),
                             ft.Text(
-                                "— OR CONTINUE WITH —",
-                                size=12,
-                                color=DARK_GREEN,
-                                weight=ft.FontWeight.BOLD
+                                "FOOD DELIVERY",
+                                size=30,
+                                weight=ft.FontWeight.BOLD,
+                                color=CREAM,
+                                text_align=ft.TextAlign.CENTER
                             ),
-
-                            ft.Container(height=10),
-
-                            ft.ElevatedButton(
-                                "  Google",
-                                width=280,
-                                height=45,
-                                bgcolor=CREAM,
-                                color=DARK_GREEN,
-                                on_click=lambda e: google_login_click(e),
-                                elevation=2,
-                                style=ft.ButtonStyle(
-                                    shape=ft.RoundedRectangleBorder(radius=8)
-                                )
+                            ft.Text(
+                                "Fresh meals, fast delivery",
+                                size=13,
+                                color=CREAM,
+                                text_align=ft.TextAlign.CENTER
                             ),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         spacing=0
                     ),
-                    bgcolor=CREAM,
-                    border_radius=16,
-                    padding=30,
-                    width=350
                 ),
-
-                ft.Container(height=20),
-
+                ft.Container(height=18),
                 ft.Container(
-                    content=ft.Row(
+                    content=ft.Column(
                         [
-                            ft.Text("Don't have an account? ", color=TEXT_DARK),
-                            ft.Text("Sign Up", color=ACCENT_DARK, weight=ft.FontWeight.BOLD)
+                            ft.Text("Welcome Back", size=22, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                            ft.Container(height=4),
+                            welcome_text,
+                            ft.Container(height=18),
+                            email_container,
+                            ft.Container(height=12),
+                            password_container,
+                            ft.Container(height=10),
+                            lockout_container,
+                            ft.Container(height=18),
+                            ft.ElevatedButton(
+                                "Log in",
+                                width=300,
+                                height=48,
+                                bgcolor=ACCENT_DARK,
+                                color=CREAM,
+                                on_click=login_click,
+                                elevation=4,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=10)
+                                )
+                            ),
+                            ft.Container(height=14),
+                            ft.Text(
+                                "— OR CONTINUE WITH —",
+                                size=12,
+                                color=DARK_GREEN,
+                                weight=ft.FontWeight.BOLD,
+                                text_align=ft.TextAlign.CENTER
+                            ),
+                            ft.Container(height=10),
+                            ft.ElevatedButton(
+                                "Google",
+                                width=300,
+                                height=46,
+                                bgcolor=CREAM,
+                                color=DARK_GREEN,
+                                on_click=lambda e: google_login_click(e),
+                                elevation=2,
+                                style=ft.ButtonStyle(
+                                    shape=ft.RoundedRectangleBorder(radius=10),
+                                    side=ft.BorderSide(1, FIELD_BORDER)
+                                )
+                            ),
+                            ft.Container(height=14),
+                            ft.TextButton(
+                                "Reset Password",
+                                on_click=goto_reset,
+                                style=ft.ButtonStyle(color=DARK_GREEN)
+                            ),
+                            ft.Container(
+                                content=ft.Row(
+                                    [
+                                        ft.Text("Don't have an account? ", color=TEXT_DARK),
+                                        ft.Text("Sign Up", color=ACCENT_DARK, weight=ft.FontWeight.BOLD)
+                                    ],
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    spacing=0
+                                ),
+                                on_click=goto_signup
+                            )
                         ],
-                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=0
                     ),
-                    on_click=goto_signup
+                    bgcolor=CREAM,
+                    border_radius=20,
+                    border=ft.border.all(1, FIELD_BORDER),
+                    shadow=ft.BoxShadow(
+                        spread_radius=1,
+                        blur_radius=16,
+                        color="black12",
+                        offset=ft.Offset(0, 6)
+                    ),
+                    padding=28,
+                    width=380,
+                    on_click=None,
+                    ink=False
                 ),
-
-                ft.TextButton(
-                    "Reset Password",
-                    on_click=goto_reset,
-                    style=ft.ButtonStyle(color=DARK_GREEN)
-                )
             ],
             scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,

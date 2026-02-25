@@ -142,6 +142,30 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         padding=10,
     )
 
+    order_details_content = ft.Column([], spacing=10)
+    order_details_panel = ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Text("Order Details", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                ft.IconButton(
+                    icon=ft.Icons.CLOSE,
+                    icon_size=20,
+                    icon_color=TEXT_DARK,
+                    tooltip="Close",
+                    on_click=lambda e: None,
+                ),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Divider(height=1, color=FIELD_BORDER),
+            order_details_content,
+        ], scroll=ft.ScrollMode.AUTO),
+        visible=False,
+        width=360,
+        padding=20,
+        bgcolor=CREAM,
+        border=ft.border.all(1, FIELD_BORDER),
+        border_radius=12,
+    )
+
     order_search_field = ft.TextField(
         hint_text="Search order, customer, item...",
         width=280,
@@ -319,6 +343,8 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         form_container=form_container,
         user_details_panel=user_details_panel,
         user_details_content=user_details_content,
+        order_details_panel=order_details_panel,
+        order_details_content=order_details_content,
         role_filter_buttons={
             "all": role_filter_all_btn,
             "customer": role_filter_customer_btn,
@@ -356,6 +382,7 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     
     # Update user details panel close button
     user_details_panel.content.controls[0].controls[1].on_click = handlers["hide_user_details"]
+    order_details_panel.content.controls[0].controls[1].on_click = handlers["hide_order_details"]
 
     role_filter_all_btn.on_click = lambda e: handlers["filter_users_by_role"]("all")
     role_filter_customer_btn.on_click = lambda e: handlers["filter_users_by_role"]("customer")
@@ -482,13 +509,17 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                             spacing=10,
                                         ),
                                         order_filter_row,
-                                        ft.Container(
-                                            content=orders_list,
-                                            padding=15,
-                                            border_radius=10,
-                                            border=ft.border.all(1, FIELD_BORDER),
-                                            height=560,
-                                        ),
+                                        ft.Row([
+                                            ft.Container(
+                                                content=orders_list,
+                                                padding=15,
+                                                border_radius=10,
+                                                border=ft.border.all(1, FIELD_BORDER),
+                                                height=560,
+                                                expand=True,
+                                            ),
+                                            order_details_panel,
+                                        ], spacing=15),
                                     ],
                                     scroll=ft.ScrollMode.AUTO,
                                     spacing=15,
