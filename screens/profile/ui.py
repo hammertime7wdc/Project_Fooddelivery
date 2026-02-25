@@ -3,8 +3,15 @@ import flet as ft
 from utils import create_profile_pic_widget, TEXT_DARK, FIELD_BG, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, ORANGE
 from core.auth import get_user_by_id
 from utils import show_snackbar
-from .handlers import handle_pic_pick, save_profile, change_password_handler, update_password_strength, save_profile_picture
-from .validation import validate_name_field, validate_email_field, validate_password_field
+from .handlers import (
+    handle_pic_pick,
+    save_profile,
+    update_password_strength,
+    save_profile_picture,
+    send_profile_reset_code_handler,
+    reset_password_with_profile_code_handler,
+)
+from .validation import validate_name_field
 
 
 def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback):
@@ -16,17 +23,35 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         return ft.Container()
     
     # Mobile-friendly width with max width limit
-    container_width = min(page.width - 30, 400)
+    container_width = min(page.width - 30, 430)
+    input_width = container_width - 44
+
+    card_shadow = ft.BoxShadow(
+        spread_radius=1,
+        blur_radius=16,
+        color="black12",
+        offset=ft.Offset(0, 6)
+    )
+
+    primary_button_style = ft.ButtonStyle(
+        shape=ft.RoundedRectangleBorder(radius=10)
+    )
+
+    subtle_button_style = ft.ButtonStyle(
+        shape=ft.RoundedRectangleBorder(radius=10),
+        side=ft.BorderSide(1, FIELD_BORDER)
+    )
     
     # ==================== FORM FIELDS ====================
     name_field = ft.TextField(
         label="Full Name", 
         value=user["full_name"], 
-        width=container_width - 40,
+        width=input_width,
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
         max_length=100,
         text_style=ft.TextStyle(color=TEXT_DARK),
         label_style=ft.TextStyle(color=TEXT_DARK),
@@ -35,69 +60,77 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     name_error = ft.Text("", size=11, color="red", visible=False)
     
     email_field = ft.TextField(
-        label="Email", 
+        label="Email Address", 
         value=user["email"], 
-        width=container_width - 40,
+        width=input_width,
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY,
+        focused_border_color=FIELD_BORDER,
+        border_radius=10,
         max_length=254,
         text_style=ft.TextStyle(color=TEXT_DARK),
         label_style=ft.TextStyle(color=TEXT_DARK),
-        on_change=lambda e: validate_email_field(email_field, email_error, page)
+        read_only=True,
+        helper_text="Email cannot be changed here."
     )
-    email_error = ft.Text("", size=11, color="red", visible=False)
     
     address_field = ft.TextField(
         label="Address", 
         value=user["address"] or "", 
-        width=container_width - 40,
+        width=input_width,
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
         text_style=ft.TextStyle(color=TEXT_DARK),
-        label_style=ft.TextStyle(color=TEXT_DARK)
+        label_style=ft.TextStyle(color=TEXT_DARK),
+        hint_text="Street, City, ZIP"
     )
     
     contact_field = ft.TextField(
-        label="Contact", 
+        label="Contact Number", 
         value=user["contact"] or "", 
-        width=container_width - 40,
+        width=input_width,
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        label_style=ft.TextStyle(color=TEXT_DARK),
+        hint_text="e.g. +63 912 345 6789"
+    )
+
+    current_password = ft.TextField(
+        label="Current Password",
+        password=True,
+        can_reveal_password=True,
+        width=input_width,
+        bgcolor="white",
+        color=TEXT_DARK,
+        border_color=FIELD_BORDER,
+        focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
+        max_length=128,
         text_style=ft.TextStyle(color=TEXT_DARK),
         label_style=ft.TextStyle(color=TEXT_DARK)
     )
 
-    current_password = ft.TextField(
-        label="Current Password", 
-        password=True, 
-        can_reveal_password=True, 
-        width=container_width - 40,
-        bgcolor="white",
-        color=TEXT_DARK,
-        border_color=FIELD_BORDER,
-        focused_border_color=ACCENT_PRIMARY,
-        text_style=ft.TextStyle(color=TEXT_DARK),
-        label_style=ft.TextStyle(color=TEXT_DARK)
-    )
-    
-    password_strength_bar = ft.ProgressBar(width=container_width - 40, value=0, color="grey", bgcolor="white", visible=False)
+    password_strength_bar = ft.ProgressBar(width=input_width, value=0, color="grey", bgcolor="white", visible=False)
     password_strength_text = ft.Text("", size=12, color="grey", visible=False)
     
     new_password = ft.TextField(
         label="New Password", 
         password=True, 
         can_reveal_password=True, 
-        width=container_width - 40,
+        width=input_width,
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
         max_length=128,
         text_style=ft.TextStyle(color=TEXT_DARK),
         label_style=ft.TextStyle(color=TEXT_DARK),
@@ -110,14 +143,72 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         label="Confirm New Password", 
         password=True, 
         can_reveal_password=True, 
-        width=container_width - 40,
+        width=input_width,
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
         focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
         max_length=128,
         text_style=ft.TextStyle(color=TEXT_DARK),
         label_style=ft.TextStyle(color=TEXT_DARK)
+    )
+
+    reset_code_field = ft.TextField(
+        label="Verification Code",
+        hint_text="Enter 6-digit code",
+        width=input_width,
+        max_length=6,
+        text_align=ft.TextAlign.CENTER,
+        bgcolor="white",
+        color=TEXT_DARK,
+        border_color=FIELD_BORDER,
+        focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
+        text_style=ft.TextStyle(color=TEXT_DARK),
+        label_style=ft.TextStyle(color=TEXT_DARK),
+        visible=False,
+    )
+
+    reset_code_info = ft.Text("", size=12, color=ACCENT_DARK, visible=False)
+
+    verify_code_button = ft.ElevatedButton(
+        "Verify Code & Update Password",
+        bgcolor=ORANGE,
+        color=CREAM,
+        width=input_width,
+        style=primary_button_style,
+        visible=False,
+        on_click=lambda e: reset_password_with_profile_code_handler(
+            page,
+            current_user,
+            current_password,
+            reset_code_field,
+            new_password,
+            confirm_password,
+            password_strength_bar,
+            password_strength_text,
+            reset_code_info,
+            verify_code_button,
+            resend_code_button,
+        )
+    )
+
+    resend_code_button = ft.TextButton(
+        "Resend Code",
+        visible=False,
+        style=ft.ButtonStyle(color=ACCENT_DARK),
+        on_click=lambda e: send_profile_reset_code_handler(
+            page,
+            current_user,
+            current_password,
+            new_password,
+            confirm_password,
+            reset_code_field,
+            reset_code_info,
+            verify_code_button,
+            resend_code_button,
+        )
     )
 
     # ==================== PROFILE PICTURE ====================
@@ -128,9 +219,10 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         content=create_profile_pic_widget(user, pic_size, pic_size),
         width=pic_size,
         height=pic_size,
-        border=ft.border.all(2, FIELD_BORDER),
+        border=ft.border.all(3, FIELD_BORDER),
         border_radius=ft.border_radius.all(pic_size // 2),
-        alignment=ft.alignment.center
+        alignment=ft.alignment.center,
+        shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color="black12", offset=ft.Offset(0, 3))
     )
 
     uploaded_pic = {"data": user.get("profile_picture"), "type": user.get("pic_type") or "emoji"}
@@ -143,27 +235,32 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     profile_pic_section = ft.Container(
         content=ft.Column(
             [
+                ft.Text("Profile Photo", size=18, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                ft.Text("Upload or change your display picture", size=12, color="#666666"),
+                ft.Container(height=4),
                 ft.Container(
                     content=profile_pic_preview,
                     padding=10,
                     border_radius=75
                 ),
                 ft.ElevatedButton(
-                    "Change Image",
+                    "Upload New Photo",
                     icon=ft.Icons.UPLOAD_FILE,
                     bgcolor=ACCENT_DARK,
                     color=CREAM,
-                    width=container_width - 40,
+                    width=input_width,
+                    style=primary_button_style,
                     on_click=lambda _: file_picker.pick_files(
                         allowed_extensions=["jpg", "jpeg", "png", "gif"],
                         dialog_title="Select Profile Picture"
                     )
                 ),
                 ft.ElevatedButton(
-                    "Save Picture",
+                    "Save Photo",
                     bgcolor=ORANGE,
                     color="#ffffff",
-                    width=container_width - 40,
+                    width=input_width,
+                    style=primary_button_style,
                     on_click=lambda e: save_profile_picture(page, current_user, uploaded_pic)
                 ),
                 ft.Text("We support PNGs, JPEGs and GIFs under 2MB", size=10, color="#888888", italic=True)
@@ -171,24 +268,24 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
             spacing=15,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER
         ),
-        padding=25,
+        padding=26,
         bgcolor="white",
-        border_radius=12,
+        border_radius=18,
         border=ft.border.all(1, FIELD_BORDER),
         width=container_width,
-        shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color="black12", offset=ft.Offset(0, 2))
+        shadow=card_shadow
     )
 
     # Personal Information Section
     personal_info_section = ft.Container(
         content=ft.Column(
             [
-                ft.Text("My Profile", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                ft.Text("Personal Information", size=18, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                ft.Text("Keep your profile details up to date", size=12, color="#666666"),
                 ft.Divider(color=FIELD_BORDER, height=15),
                 name_field,
                 name_error,
                 email_field,
-                email_error,
                 address_field,
                 contact_field,
                 ft.Container(height=10),
@@ -196,28 +293,41 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                     "Save Profile",
                     bgcolor=ACCENT_DARK,
                     color=CREAM,
-                    width=container_width - 40,
+                    width=input_width,
+                    style=primary_button_style,
                     on_click=lambda e: save_profile(page, current_user, name_field, email_field, 
                                                     address_field, contact_field, name_error, 
-                                                    email_error, uploaded_pic, back_callback)
+                                                    uploaded_pic, back_callback)
                 )
             ],
             spacing=12
         ),
-        padding=25,
+        padding=26,
         bgcolor="white",
-        border_radius=12,
+        border_radius=18,
         border=ft.border.all(1, FIELD_BORDER),
         width=container_width,
-        shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color="black12", offset=ft.Offset(0, 2))
+        shadow=card_shadow
     )
 
     # Account Security Section
     account_security_section = ft.Container(
         content=ft.Column(
             [
-                ft.Text("Account Security", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                ft.Text("Account Security", size=18, weight=ft.FontWeight.BOLD, color=ACCENT_DARK),
+                ft.Text("Reset your password securely with OTP sent to your email", size=12, color="#666666"),
                 ft.Divider(color=FIELD_BORDER, height=15),
+
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("Account Email", size=11, weight=ft.FontWeight.BOLD, color="#666666"),
+                        ft.Text(user.get("email", ""), size=13, color=TEXT_DARK, weight=ft.FontWeight.W_600),
+                    ], spacing=4),
+                    bgcolor=FIELD_BG,
+                    border_radius=10,
+                    padding=12,
+                    width=input_width,
+                ),
                 
                 ft.Column([
                     ft.Text("Current Password", size=12, weight=ft.FontWeight.BOLD, color="#666666"),
@@ -235,25 +345,42 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 
                 ft.Container(height=10),
+                ft.Text("Step 1: Request a verification code", size=11, color="#666666"),
                 ft.ElevatedButton(
-                    "Update Password",
-                    bgcolor=ACCENT_DARK,
+                    "Send Reset Code",
+                    bgcolor=ORANGE,
                     color=CREAM,
-                    width=container_width - 40,
-                    on_click=lambda e: change_password_handler(page, current_user, current_password, 
-                                                              new_password, confirm_password, 
-                                                              password_strength_bar, password_strength_text)
-                )
+                    width=input_width,
+                    style=primary_button_style,
+                    on_click=lambda e: send_profile_reset_code_handler(
+                        page,
+                        current_user,
+                        current_password,
+                        new_password,
+                        confirm_password,
+                        reset_code_field,
+                        reset_code_info,
+                        verify_code_button,
+                        resend_code_button,
+                    )
+                ),
+                ft.Container(height=4),
+                ft.Text("Step 2: Enter code and set your new password", size=11, color="#666666"),
+                reset_code_info,
+                reset_code_field,
+                ft.Container(height=4),
+                verify_code_button,
+                resend_code_button
             ],
             spacing=12,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER
         ),
-        padding=25,
+        padding=26,
         bgcolor="white",
-        border_radius=12,
+        border_radius=18,
         border=ft.border.all(1, FIELD_BORDER),
         width=container_width,
-        shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color="black12", offset=ft.Offset(0, 2))
+        shadow=card_shadow
     )
 
     # ==================== TAB MANAGEMENT ====================
@@ -317,6 +444,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         "Profile", 
         style=ft.ButtonStyle(
             color=TEXT_DARK,
+            shape=ft.RoundedRectangleBorder(radius=8),
             padding=ft.padding.only(bottom=btn_padding_bottom, top=btn_padding_top, left=btn_padding_left, right=btn_padding_right)
         ), 
         on_click=lambda e: switch_tab("profile")
@@ -325,6 +453,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         "Personal Info", 
         style=ft.ButtonStyle(
             color=TEXT_DARK,
+            shape=ft.RoundedRectangleBorder(radius=8),
             padding=ft.padding.only(bottom=btn_padding_bottom, top=btn_padding_top, left=btn_padding_left, right=btn_padding_right)
         ), 
         on_click=lambda e: switch_tab("personal")
@@ -333,6 +462,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         "Security", 
         style=ft.ButtonStyle(
             color=TEXT_DARK,
+            shape=ft.RoundedRectangleBorder(radius=8),
             padding=ft.padding.only(bottom=btn_padding_bottom, top=btn_padding_top, left=btn_padding_left, right=btn_padding_right)
         ), 
         on_click=lambda e: switch_tab("security")
@@ -382,10 +512,11 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     
     tab_header = ft.Container(
         content=tabs_row,
-        bgcolor=CREAM,
+        bgcolor="white",
         padding=tab_header_padding,
-        border=ft.border.all(2, ACCENT_PRIMARY),
-        border_radius=ft.border_radius.only(top_left=20, top_right=20),
+        border=ft.border.all(1, FIELD_BORDER),
+        border_radius=ft.border_radius.all(14),
+        shadow=ft.BoxShadow(spread_radius=1, blur_radius=10, color="black12", offset=ft.Offset(0, 3)),
         alignment=ft.alignment.top_left
     )
     
@@ -396,7 +527,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     scrollable_content = ft.Container(
         content=ft.Column(
             [tab_header, tab_content],
-            spacing=0,
+            spacing=12,
             expand=True,
             scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -410,23 +541,34 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     base_layout = ft.Column(
         [
             ft.Container(
-                content=ft.Row([
-                    ft.Text("Account Settings", size=24, weight=ft.FontWeight.BOLD, color=CREAM, expand=True),
-                    ft.IconButton(
-                        icon=ft.Icons.ARROW_BACK,
-                        icon_color=CREAM,
-                        on_click=back_callback,
-                        icon_size=24
-                    )
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                bgcolor=ACCENT_PRIMARY,
-                padding=20,
+                content=ft.Column(
+                    [
+                        ft.Row([
+                            ft.IconButton(
+                                icon=ft.Icons.ARROW_BACK,
+                                icon_color=CREAM,
+                                on_click=back_callback,
+                                icon_size=24,
+                                tooltip="Back"
+                            ),
+                            ft.Text("My Profile", size=24, weight=ft.FontWeight.BOLD, color=CREAM, expand=True),
+                        ], alignment=ft.MainAxisAlignment.START, spacing=4),
+                        ft.Text(
+                            "Manage your account details and security",
+                            size=12,
+                            color=CREAM
+                        )
+                    ],
+                    spacing=2
+                ),
+                bgcolor=ORANGE,
+                padding=ft.padding.only(left=14, right=18, top=14, bottom=18),
             ),
             
             ft.Container(
                 content=scrollable_content,
                 expand=True,
-                padding=ft.padding.only(left=15, right=15, top=15, bottom=15),
+                padding=ft.padding.only(left=15, right=15, top=14, bottom=15),
                 bgcolor=CREAM,
                 alignment=ft.alignment.top_center
             )

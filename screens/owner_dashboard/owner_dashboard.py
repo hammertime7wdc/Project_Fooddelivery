@@ -23,6 +23,36 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         run_spacing=12,
         padding=10,
     )
+
+    order_details_content = ft.Column([], spacing=10)
+    order_details_panel = ft.Container(
+        content=ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Text("Order Details", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            icon_size=20,
+                            icon_color=TEXT_DARK,
+                            tooltip="Close",
+                            on_click=lambda e: None,
+                        ),
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                ),
+                ft.Divider(height=1, color=FIELD_BORDER),
+                order_details_content,
+            ],
+            scroll=ft.ScrollMode.AUTO,
+        ),
+        visible=False,
+        width=360,
+        padding=20,
+        bgcolor=CREAM,
+        border=ft.border.all(1, FIELD_BORDER),
+        border_radius=12,
+    )
     
     # Create form fields
     form_fields = create_menu_form_fields()
@@ -89,7 +119,17 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     
 
     # Create order handlers
-    order_handlers = create_order_handlers(page, current_user, orders_list, order_filter_buttons, order_search_field, date_range_dropdown)
+    order_handlers = create_order_handlers(
+        page,
+        current_user,
+        orders_list,
+        order_filter_buttons,
+        order_search_field,
+        date_range_dropdown,
+        order_details_panel,
+        order_details_content,
+    )
+    order_details_panel.content.controls[0].controls[1].on_click = order_handlers["hide_order_details"]
     
     # Connect filter button callbacks now that handlers exist
     def update_filter_button_callbacks():
@@ -187,12 +227,19 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                         order_filter_buttons_row,
                                         
                                         # Orders list container
-                                        ft.Container(
-                                            content=orders_list,
-                                            padding=15,
-                                            border_radius=10,
-                                            border=ft.border.all(1, FIELD_BORDER),
-                                            height=560,
+                                        ft.Row(
+                                            [
+                                                ft.Container(
+                                                    content=orders_list,
+                                                    padding=15,
+                                                    border_radius=10,
+                                                    border=ft.border.all(1, FIELD_BORDER),
+                                                    height=560,
+                                                    expand=True,
+                                                ),
+                                                order_details_panel,
+                                            ],
+                                            spacing=15,
                                         )
                                     ],
                                     scroll=ft.ScrollMode.AUTO,
