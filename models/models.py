@@ -28,6 +28,13 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
+    email_verified = Column(Integer, default=1)
+    verification_token_hash = Column(String, nullable=True)
+    verification_token_expires_at = Column(DateTime, nullable=True)
+    verification_sent_at = Column(DateTime, nullable=True)
+    reset_token_hash = Column(String, nullable=True)
+    reset_token_expires_at = Column(DateTime, nullable=True)
+    reset_sent_at = Column(DateTime, nullable=True)
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)
     address = Column(String, default='')
@@ -49,6 +56,7 @@ class User(Base):
         return {
             'id': self.id,
             'email': self.email,
+            'email_verified': self.email_verified,
             'full_name': self.full_name,
             'role': self.role,
             'address': self.address,
@@ -239,6 +247,38 @@ def init_database():
             conn.execute(text("ALTER TABLE orders ADD COLUMN payment_method STRING DEFAULT 'Cash on Delivery'"))
             conn.commit()
 
+        # Migrate: Add verification/reset columns to users if they don't exist
+        result = conn.execute(text("PRAGMA table_info(users)"))
+        user_columns = [row[1] for row in result.fetchall()]
+
+        email_verified_added = False
+        if "email_verified" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 1"))
+            email_verified_added = True
+
+        if "verification_token_hash" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN verification_token_hash STRING DEFAULT NULL"))
+
+        if "verification_token_expires_at" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN verification_token_expires_at DATETIME DEFAULT NULL"))
+
+        if "verification_sent_at" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN verification_sent_at DATETIME DEFAULT NULL"))
+
+        if "reset_token_hash" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_hash STRING DEFAULT NULL"))
+
+        if "reset_token_expires_at" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires_at DATETIME DEFAULT NULL"))
+
+        if "reset_sent_at" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN reset_sent_at DATETIME DEFAULT NULL"))
+
+        if email_verified_added:
+            conn.execute(text("UPDATE users SET email_verified = 1"))
+
+        conn.commit()
+
     session = Session()
     try:
         if session.query(User).count() == 0:
@@ -247,6 +287,7 @@ def init_database():
             admin = User(
                 email=os.getenv("ADMIN_EMAIL"),
                 password=hash_password(os.getenv("ADMIN_PASSWORD")),
+                email_verified=1,
                 full_name='System Administrator',
                 role='admin'
             )
@@ -254,6 +295,7 @@ def init_database():
             customer = User(
                 email=os.getenv("CUSTOMER_EMAIL"),
                 password=hash_password(os.getenv("CUSTOMER_PASSWORD")),
+                email_verified=1,
                 full_name='John Doe',
                 role='customer'
             )
@@ -261,6 +303,7 @@ def init_database():
             owner = User(
                 email=os.getenv("OWNER_EMAIL"),
                 password=hash_password(os.getenv("OWNER_PASSWORD")),
+                email_verified=1,
                 full_name='Restaurant Owner',
                 role='owner'
             )
