@@ -52,9 +52,18 @@ def create_image_widget(item, width=100, height=100):
     """Create appropriate image widget based on image type"""
     if item.get("image_type") == "emoji":
         return ft.Text(item["image"], size=50)
+    elif item.get("image_type") == "url" and item.get("image"):
+        return ft.Image(
+            src=item["image"],
+            width=width,
+            height=height,
+            fit=ft.ImageFit.COVER,
+            border_radius=10
+        )
     elif item.get("image_type") == "path" and item.get("image"):
         # Construct path: "uuid.jpg" -> "assets/menu/uuid.jpg"
-        img_path = ASSETS_DIR / "menu" / item["image"]
+        image_name = Path(str(item["image"])).name
+        img_path = ASSETS_DIR / "menu" / image_name
         return ft.Image(
             src=str(img_path),
             width=width,
@@ -76,12 +85,18 @@ def create_image_widget(item, width=100, height=100):
 
 # Helper for user profile picture
 def create_profile_pic_widget(user, width=100, height=100):
-    """Create profile picture widget - file-based storage"""
-    if user.get("pic_type") == "path" and user.get("profile_picture"):
-        # File-based approach
-        img_path = ASSETS_DIR / "profiles" / user["profile_picture"]
+    """Create profile picture widget from URL with base64 fallback."""
+    if user.get("pic_type") == "url" and user.get("profile_picture"):
         return ft.Image(
-            src=str(img_path),
+            src=user["profile_picture"],
+            width=width,
+            height=height,
+            fit=ft.ImageFit.COVER,
+            border_radius=ft.border_radius.all(75)
+        )
+    elif user.get("pic_type") == "base64" and user.get("profile_picture"):
+        return ft.Image(
+            src_base64=user["profile_picture"],
             width=width,
             height=height,
             fit=ft.ImageFit.COVER,
