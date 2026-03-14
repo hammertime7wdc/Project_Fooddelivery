@@ -35,6 +35,7 @@ class User(Base):
     reset_token_hash = Column(String, nullable=True)
     reset_token_expires_at = Column(DateTime, nullable=True)
     reset_sent_at = Column(DateTime, nullable=True)
+    reset_resend_count = Column(Integer, default=0)
     full_name = Column(String, nullable=False)
     role = Column(String, nullable=False)
     address = Column(String, default='')
@@ -69,6 +70,20 @@ class User(Base):
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+class PendingSignup(Base):
+    __tablename__ = 'pending_signups'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column("password", String, nullable=False)
+    full_name = Column(String, nullable=False)
+    role = Column(String, nullable=False, default='customer')
+    verification_token_hash = Column(String, nullable=False)
+    verification_token_expires_at = Column(DateTime, nullable=False)
+    verification_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
 
 
 class MenuItem(Base):
@@ -274,8 +289,22 @@ def init_database():
         if "reset_sent_at" not in user_columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN reset_sent_at DATETIME DEFAULT NULL"))
 
+        if "reset_resend_count" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN reset_resend_count INTEGER DEFAULT 0"))
+
         if email_verified_added:
             conn.execute(text("UPDATE users SET email_verified = 1"))
+
+        # Migrate: Align pending_signups password column naming across versions
+        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='pending_signups'"))
+        has_pending_signups = result.fetchone() is not None
+        if has_pending_signups:
+            result = conn.execute(text("PRAGMA table_info(pending_signups)"))
+            pending_columns = [row[1] for row in result.fetchall()]
+
+            if "password" not in pending_columns and "password_hash" in pending_columns:
+                conn.execute(text("ALTER TABLE pending_signups ADD COLUMN password STRING DEFAULT ''"))
+                conn.execute(text("UPDATE pending_signups SET password = password_hash WHERE password IS NULL OR password = ''"))
 
         conn.commit()
 
