@@ -1,16 +1,18 @@
 # core/auth.py (Refactored with SQLAlchemy)
 import bcrypt
 from datetime import datetime, timedelta
-from models.models import Session, User
+from models.models import Session, User, PendingSignup
 from .database import log_action
 from .email_sender import get_email_sender
 import hashlib
 import secrets
+import math
+from sqlalchemy import func
 
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 1
 VERIFICATION_TOKEN_EXPIRY_MINUTES = 10
-VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
+VERIFICATION_RESEND_COOLDOWN_SECONDS = 15
 PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 10
 PASSWORD_RESET_RESEND_COOLDOWN_SECONDS = 60
 
@@ -214,31 +216,21 @@ def authenticate_user(email: str, password: str):
 def register_user(email: str, password: str, full_name: str, role: str = "customer", require_verification: bool = True):
     session = Session()
     try:
-        existing = session.query(User).filter_by(email=email).first()
+        email = (email or "").strip().lower()
+        existing = session.query(User).filter(func.lower(func.trim(User.email)) == email).first()
         if existing:
-            return False, "Email already exists"
+            return False, "Email already registered"
 
-        email_sender = get_email_sender()
-        now = datetime.now()
-        token = _generate_otp_code() if require_verification else None
-        
         hashed_password = hash_password(password)
-        user = User(
-            email=email,
-            password=hashed_password,
-            email_verified=0 if require_verification else 1,
-            verification_token_hash=_hash_token(token) if token else None,
-            verification_token_expires_at=(now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES)) if token else None,
-            verification_sent_at=now if token else None,
-            full_name=full_name,
-            role=role
-        )
-        session.add(user)
-        session.commit()
 
         if require_verification:
+            email_sender = get_email_sender()
             if not email_sender.is_configured():
                 return False, "Email service is not configured"
+
+            now = datetime.now()
+            token = _generate_otp_code()
+
             sent, send_msg = email_sender.send_verification_email(
                 to_email=email,
                 full_name=full_name,
@@ -246,9 +238,44 @@ def register_user(email: str, password: str, full_name: str, role: str = "custom
                 expiry_minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES,
             )
             if not sent:
+                log_action(None, "SIGNUP_VERIFICATION_EMAIL_FAILED", f"Email: {email} | Reason: {send_msg}")
                 return False, f"Failed to send verification email: {send_msg}"
+
+            existing_pending = session.query(PendingSignup).filter(func.lower(func.trim(PendingSignup.email)) == email).first()
+            if existing_pending:
+                existing_pending.password_hash = hashed_password
+                existing_pending.full_name = full_name
+                existing_pending.role = role
+                existing_pending.verification_token_hash = _hash_token(token)
+                existing_pending.verification_token_expires_at = now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES)
+                existing_pending.verification_sent_at = now
+                existing_pending.created_at = now
+            else:
+                pending = PendingSignup(
+                    email=email,
+                    password_hash=hashed_password,
+                    full_name=full_name,
+                    role=role,
+                    verification_token_hash=_hash_token(token),
+                    verification_token_expires_at=now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES),
+                    verification_sent_at=now,
+                    created_at=now,
+                )
+                session.add(pending)
+
+            session.commit()
             return True, "Verification code sent. Please check your email."
-        
+
+        user = User(
+            email=email,
+            password=hashed_password,
+            email_verified=1,
+            full_name=full_name,
+            role=role
+        )
+        session.add(user)
+        session.commit()
+
         log_action(user.id, "USER_REGISTERED", f"New user registered: {email}")
         return True, "User registered successfully"
     except Exception as e:
@@ -438,7 +465,7 @@ def verify_current_password(user_id: int, current_password: str):
         session.close()
 
 
-def request_password_reset_code(email: str):
+def request_password_reset_code(email: str, is_resend: bool = False):
     session = Session()
     try:
         valid_email, msg = validate_email(email)
@@ -454,16 +481,31 @@ def request_password_reset_code(email: str):
             return False, "Email service is not configured"
 
         now = datetime.now()
-        if user.reset_sent_at:
+        resend_count = int(getattr(user, "reset_resend_count", 0) or 0)
+
+        has_active_reset_flow = bool(
+            user.reset_token_hash
+            and user.reset_token_expires_at
+            and now <= user.reset_token_expires_at
+        )
+
+        if not has_active_reset_flow:
+            resend_count = 0
+
+        if is_resend and has_active_reset_flow and resend_count > 0 and user.reset_sent_at:
             elapsed = (now - user.reset_sent_at).total_seconds()
             if elapsed < PASSWORD_RESET_RESEND_COOLDOWN_SECONDS:
-                remaining = int(PASSWORD_RESET_RESEND_COOLDOWN_SECONDS - elapsed)
+                remaining = max(1, math.ceil(PASSWORD_RESET_RESEND_COOLDOWN_SECONDS - elapsed))
                 return False, f"Please wait {remaining}s before requesting another code"
 
         token = _generate_otp_code()
         user.reset_token_hash = _hash_token(token)
         user.reset_token_expires_at = now + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRY_MINUTES)
         user.reset_sent_at = now
+        if is_resend:
+            user.reset_resend_count = resend_count + 1 if has_active_reset_flow else 1
+        else:
+            user.reset_resend_count = 0
         session.commit()
 
         sent, send_msg = email_sender.send_password_reset_email(
@@ -511,6 +553,7 @@ def reset_password_with_code(email: str, code: str, new_password: str):
         user.reset_token_hash = None
         user.reset_token_expires_at = None
         user.reset_sent_at = None
+        user.reset_resend_count = 0
         user.failed_login_attempts = 0
         user.locked_until = None
         session.commit()
@@ -527,6 +570,36 @@ def reset_password_with_code(email: str, code: str, new_password: str):
 def verify_signup_code(email: str, code: str):
     session = Session()
     try:
+        email = (email or "").strip().lower()
+        pending = session.query(PendingSignup).filter(func.lower(func.trim(PendingSignup.email)) == email).first()
+
+        if pending:
+            if datetime.now() > pending.verification_token_expires_at:
+                return False, "Verification code has expired. Please request a new code."
+
+            if _hash_token(code.strip()) != pending.verification_token_hash:
+                return False, "Incorrect verification code. Please check and try again."
+
+            existing_user = session.query(User).filter(func.lower(func.trim(User.email)) == email, User.is_active == 1).first()
+            if existing_user:
+                session.delete(pending)
+                session.commit()
+                return True, "Email already verified"
+
+            user = User(
+                email=email,
+                password=pending.password_hash,
+                email_verified=1,
+                full_name=pending.full_name,
+                role=pending.role,
+            )
+            session.add(user)
+            session.delete(pending)
+            session.commit()
+
+            log_action(user.id, "EMAIL_VERIFIED", f"Email verified and account created: {email}")
+            return True, "Email verified successfully."
+
         user = session.query(User).filter_by(email=email, is_active=1).first()
         if not user:
             return False, "No signup request found for this email"
@@ -561,8 +634,47 @@ def verify_signup_code(email: str, code: str):
 def resend_signup_code(email: str):
     session = Session()
     try:
+        email = (email or "").strip().lower()
+        pending = session.query(PendingSignup).filter(func.lower(func.trim(PendingSignup.email)) == email).first()
+
+        if pending:
+            email_sender = get_email_sender()
+            if not email_sender.is_configured():
+                log_action(None, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: Email service not configured")
+                return False, "Email service is not configured"
+
+            now = datetime.now()
+            # Allow first resend immediately after signup; enforce cooldown only between resend attempts.
+            # register_user sets created_at and verification_sent_at to the same timestamp for initial send.
+            if pending.verification_sent_at and pending.created_at and pending.verification_sent_at > pending.created_at:
+                elapsed = (now - pending.verification_sent_at).total_seconds()
+                if elapsed < VERIFICATION_RESEND_COOLDOWN_SECONDS:
+                    remaining = max(1, math.ceil(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed))
+                    log_action(None, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: Cooldown active ({remaining}s remaining)")
+                    return False, f"Please wait {remaining}s before requesting another code"
+
+            token = _generate_otp_code()
+            pending.verification_token_hash = _hash_token(token)
+            pending.verification_token_expires_at = now + timedelta(minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES)
+            pending.verification_sent_at = now
+            session.commit()
+
+            sent, send_msg = email_sender.send_verification_email(
+                to_email=pending.email,
+                full_name=pending.full_name,
+                token=token,
+                expiry_minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES,
+            )
+            if not sent:
+                log_action(None, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: {send_msg}")
+                return False, f"Failed to resend verification email: {send_msg}"
+
+            log_action(None, "SIGNUP_VERIFICATION_RESENT", f"Verification code resent: {email}")
+            return True, "Verification code resent. Please check your email."
+
         user = session.query(User).filter_by(email=email, is_active=1).first()
         if not user:
+            log_action(None, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: No signup request found")
             return False, "No signup request found for this email"
 
         if getattr(user, "email_verified", 1) == 1:
@@ -570,13 +682,15 @@ def resend_signup_code(email: str):
 
         email_sender = get_email_sender()
         if not email_sender.is_configured():
+            log_action(user.id, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: Email service not configured")
             return False, "Email service is not configured"
 
         now = datetime.now()
         if user.verification_sent_at:
             elapsed = (now - user.verification_sent_at).total_seconds()
             if elapsed < VERIFICATION_RESEND_COOLDOWN_SECONDS:
-                remaining = int(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed)
+                remaining = max(1, math.ceil(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed))
+                log_action(user.id, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: Cooldown active ({remaining}s remaining)")
                 return False, f"Please wait {remaining}s before requesting another code"
 
         token = _generate_otp_code()
@@ -592,11 +706,14 @@ def resend_signup_code(email: str):
             expiry_minutes=VERIFICATION_TOKEN_EXPIRY_MINUTES,
         )
         if not sent:
+            log_action(user.id, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: {send_msg}")
             return False, f"Failed to resend verification email: {send_msg}"
 
+        log_action(user.id, "SIGNUP_VERIFICATION_RESENT", f"Verification code resent: {email}")
         return True, "Verification code resent. Please check your email."
     except Exception:
         session.rollback()
+        log_action(None, "SIGNUP_VERIFICATION_RESEND_FAILED", f"Email: {email} | Reason: Unexpected error")
         return False, "Failed to resend verification code"
     finally:
         session.close()

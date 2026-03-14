@@ -77,7 +77,7 @@ class GoogleOAuthHandler:
         """Start a simple HTTP server to handle OAuth callback"""
         # Don't start if already running
         if self.server is not None:
-            print("✅ OAuth callback server already running on port 9000")
+            print("[OK] OAuth callback server already running on port 9000")
             return
         
         try:
@@ -87,16 +87,16 @@ class GoogleOAuthHandler:
             self.server.timeout = 0.5
             thread = threading.Thread(target=self._serve_forever, daemon=True)
             thread.start()
-            print("✅ OAuth callback server started successfully on http://localhost:9000")
+            print("[OK] OAuth callback server started successfully on http://localhost:9000")
         except OSError as e:
             if "address already in use" in str(e).lower():
-                print("⚠️ Port 9000 already in use - OAuth server may already be running")
+                print("[WARN] Port 9000 already in use - OAuth server may already be running")
                 # Port already in use, which is fine - server is running
             else:
-                print(f"❌ Failed to start OAuth callback server: {e}")
+                print(f"[ERROR] Failed to start OAuth callback server: {e}")
                 raise
         except Exception as e:
-            print(f"❌ Failed to start OAuth callback server: {e}")
+            print(f"[ERROR] Failed to start OAuth callback server: {e}")
             raise
     
     def _serve_forever(self):
@@ -106,7 +106,7 @@ class GoogleOAuthHandler:
                 self.server.handle_request()
             except Exception as e:
                 # Don't break - keep server running even on errors
-                print(f"⚠️ Callback server handled error (continuing): {e}")
+                print(f"[WARN] Callback server handled error (continuing): {e}")
                 # Continue serving instead of breaking
     
     def _create_callback_handler(self):
@@ -124,14 +124,14 @@ class GoogleOAuthHandler:
                     state = params['state'][0]
                     # Store code by state for multi-user support
                     parent.auth_codes[state] = code
-                    print(f"✅ OAuth callback received for state: {state[:8]}...")
+                    print(f"[OK] OAuth callback received for state: {state[:8]}...")
                     
                     self.send_response(200)
                     self.send_header('Content-type', 'text/html; charset=utf-8')
                     self.end_headers()
                     html = """<html><head><title>Authorization Successful</title></head>
                     <body style='font-family: Arial; text-align: center; padding: 50px;'>
-                    <h1 style='color: green;'>✅ Authorization Successful!</h1>
+                    <h1 style='color: green;'> Authorization Successful!</h1>
                     <p>You can close this window now and return to the app.</p>
                     <script>setTimeout(function() { window.close(); }, 2000);</script>
                     </body></html>"""
@@ -141,7 +141,7 @@ class GoogleOAuthHandler:
                     self.send_header('Content-type', 'text/html; charset=utf-8')
                     self.end_headers()
                     html = """<html><body style='font-family: Arial; text-align: center; padding: 50px;'>
-                    <h1 style='color: red;'>❌ Authorization Failed</h1>
+                    <h1 style='color: red;'>[FAILED] Authorization Failed</h1>
                     <p>Please try again.</p>
                     </body></html>"""
                     self.wfile.write(html.encode('utf-8'))
@@ -154,7 +154,7 @@ class GoogleOAuthHandler:
     def exchange_code_for_token(self, state):
         """Exchange authorization code for access token"""
         if state not in self.auth_codes:
-            print(f"❌ No authorization code found for state: {state[:8]}...")
+            print(f"[ERROR] No authorization code found for state: {state[:8]}...")
             return False
         
         auth_code = self.auth_codes[state]
@@ -175,19 +175,19 @@ class GoogleOAuthHandler:
                 self.tokens[state] = token
                 # Remove used code
                 del self.auth_codes[state]
-                print(f"✅ Successfully exchanged code for access token")
+                print(f"[OK] Successfully exchanged code for access token")
                 return True
             else:
-                print(f"❌ Token exchange failed: {response.status_code}")
+                print(f"[ERROR] Token exchange failed: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ Token exchange error: {e}")
+            print(f"[ERROR] Token exchange error: {e}")
             return False
     
     def get_user_info(self, state):
         """Get user information from Google using state-specific token"""
         if state not in self.tokens:
-            print(f"❌ No token found for state: {state[:8]}...")
+            print(f"[ERROR] No token found for state: {state[:8]}...")
             return None
         
         token = self.tokens[state]
