@@ -2,8 +2,17 @@ import sys
 import os
 import flet as ft
 import threading
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if not os.getenv("FLET_SECRET_KEY"):
+    os.environ["FLET_SECRET_KEY"] = "food-delivery-demo-secret-key-change-me"
+
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 from core.database import init_database
 from core.session_manager import SessionManager
@@ -11,6 +20,7 @@ from core.google_oauth import GoogleOAuthHandler
 from utils import show_snackbar
 from screens.login import login_screen
 from screens.signup import signup_screen
+from screens.email_verification import email_verification_screen
 from screens.reset_password import reset_password_screen
 from screens.browse_menu import browse_menu_screen
 from screens.cart import cart_screen
@@ -20,13 +30,14 @@ from screens.profile import profile_screen
 from screens.owner_dashboard import owner_dashboard_screen
 from screens.admin_dashboard import admin_dashboard_screen
 from screens.splash import splash_screen
+from screens.login_loading import show_login_loading, hide_login_loading
 
 # Global OAuth handler instance
 GLOBAL_OAUTH_HANDLER = GoogleOAuthHandler()
 GLOBAL_OAUTH_HANDLER.start_callback_server()
 
 def main(page: ft.Page):
-    page.title = "Food Delivery App"
+    page.title = "LK Martin Food Systems"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = "#E9762B"  # Set to ORANGE to match splash screen
     page.padding = 0
@@ -115,6 +126,12 @@ def main(page: ft.Page):
 
     # Callbacks for navigation
     def goto_login(e=None, logout_message=None, cause=None):
+        logout_loading = None
+
+        if cause == "logout":
+            logout_loading = show_login_loading(page, "Logging out...")
+            page.update()
+
         # Reset timeout flag IMMEDIATELY if this is a normal logout (has logout_message)
         # Do this FIRST, before anything else
         if logout_message is not None:
@@ -137,6 +154,7 @@ def main(page: ft.Page):
             login_screen,
             goto_signup=goto_signup,
             goto_reset=goto_reset,
+            goto_verify=goto_verify,
             goto_dashboard=goto_dashboard,
             oauth_handler=GLOBAL_OAUTH_HANDLER,
             logout_message=logout_message,
@@ -144,8 +162,14 @@ def main(page: ft.Page):
             cause=cause,
         )
 
+        if logout_loading:
+            hide_login_loading(page, logout_loading)
+
     def goto_signup(e=None):
-        navigate_to(signup_screen, goto_login=goto_login, oauth_handler=GLOBAL_OAUTH_HANDLER)
+        navigate_to(signup_screen, goto_login=goto_login, goto_verify=goto_verify, oauth_handler=GLOBAL_OAUTH_HANDLER)
+
+    def goto_verify(email: str):
+        navigate_to(email_verification_screen, email=email, goto_login=goto_login)
 
     def goto_reset(e=None):
         navigate_to(reset_password_screen, goto_login=goto_login)
@@ -224,5 +248,5 @@ def main(page: ft.Page):
     # Start with splash screen
     page.add(splash_screen(page, current_user, cart, goto_login))
 
-ft.app(target=main, view=ft.FLET_APP) #for desktop app
-#ft.app(target=main, view=ft.WEB_BROWSER, port=8080) #for web app (opens in browser)
+#ft.app(target=main, view=ft.FLET_APP) #for desktop app
+ft.app(target=main, view=ft.WEB_BROWSER, port=8080, upload_dir=UPLOAD_DIR) #for web app (opens in browser)
