@@ -1,5 +1,6 @@
 import flet as ft
 from core.database import create_order
+from core.phone_utils import normalize_ph_to_e164, display_ph_local
 from utils import show_snackbar, TEXT_LIGHT, TEXT_DARK, FIELD_BG, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 from screens.browse_menu.image_utils import load_image_from_binary
 from screens.login_loading import show_login_loading, hide_login_loading
@@ -178,9 +179,12 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
     
     contact_field = ft.TextField(
         label="Contact Number",
-        value=current_user["user"].get("contact", ""), 
+        value=display_ph_local(current_user["user"].get("contact", "")),
         width=field_width,
         keyboard_type=ft.KeyboardType.PHONE,
+        prefix_text="+63 ",
+        max_length=10,
+        input_filter=ft.NumbersOnlyInputFilter(),
         bgcolor=TEXT_LIGHT,
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
@@ -228,12 +232,19 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         # Extract total from total_text (format: "₱123.45")
         try:
             total_amount = float(total_text.value.replace("₱", ""))
+            normalized_contact = normalize_ph_to_e164(contact_field.value)
+            if not normalized_contact:
+                hide_login_loading(page, loading_overlay)
+                show_snackbar(page, "Enter a valid PH mobile number (e.g. 9XXXXXXXXX)")
+                checkout_btn.disabled = False
+                page.update()
+                return
 
             create_order(
                 current_user["user"]["id"],
                 name_field.value,
                 address_field.value,
-                contact_field.value,
+                normalized_contact,
                 cart,
                 total_amount,
                 selected_payment["value"]

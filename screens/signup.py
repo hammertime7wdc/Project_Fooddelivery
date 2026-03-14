@@ -122,10 +122,12 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
         
         try:
             from models.models import Session, User
+            from sqlalchemy import func
             session = Session()
             try:
-                exists = session.query(User).filter_by(email=email_field.value.strip()).first()
-                if exists:
+                email_value = email_field.value.strip().lower()
+                existing_user = session.query(User).filter(func.lower(func.trim(User.email)) == email_value).first()
+                if existing_user:
                     email_exists_error.value = "Email already registered"
                     email_exists_error.visible = True
                     email_field.border_color = "red"
@@ -249,7 +251,7 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
         """Handle signup with loading state and input trimming"""
         # Trim inputs
         name = name_field.value.strip() if name_field.value else ""
-        email = email_field.value.strip() if email_field.value else ""
+        email = email_field.value.strip().lower() if email_field.value else ""
         password = password_field.value if password_field.value else ""
         confirm_password = confirm_password_field.value if confirm_password_field.value else ""
         
@@ -267,9 +269,10 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
         
         # Check if email already exists
         from models.models import Session, User as UserModel
+        from sqlalchemy import func
         session = Session()
         try:
-            existing_user = session.query(UserModel).filter_by(email=email).first()
+            existing_user = session.query(UserModel).filter(func.lower(func.trim(UserModel.email)) == email).first()
             if existing_user:
                 show_snackbar(page, "Email already registered")
                 return

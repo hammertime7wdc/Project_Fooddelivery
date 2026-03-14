@@ -257,30 +257,12 @@ def create_menu_item_card(item, page, cart, user_id, favorites, ui_update_lock, 
         height=80,
         alignment=ft.alignment.center
     )
-
-    def load_binary_image(item_data=item, img_widget=image_widget):
-        """Load image from file/base64 in background - THREAD SAFE"""
-        try:
-            real_img = load_image_from_binary(item_data)
-            if real_img and img_widget:
-                # Retry a few times until the widget is attached to the page
-                for _ in range(10):
-                    with ui_update_lock:
-                        if hasattr(img_widget, "content") and img_widget.page is not None:
-                            img_widget.content = real_img
-                            try:
-                                page.update()
-                            except Exception:
-                                # Ignore errors if page is being cleared/navigated
-                                pass
-                            return
-                    time.sleep(0.1)
-        except Exception:
-            # Silently ignore errors during navigation
-            pass
-
-    # Load image in background thread (non-blocking) - THREAD SAFE
-    threading.Thread(target=load_binary_image, daemon=True).start()
+    try:
+        real_img = load_image_from_binary(item)
+        if real_img:
+            image_widget.content = real_img
+    except Exception:
+        pass
 
     # Create card container reference for hover effect
     minus_btn = ft.IconButton(

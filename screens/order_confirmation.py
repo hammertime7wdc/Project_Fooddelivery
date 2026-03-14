@@ -1,4 +1,5 @@
 import flet as ft
+from core.image_utils import get_base64_image
 from utils import TEXT_LIGHT, TEXT_DARK, ACCENT_DARK, ACCENT_PRIMARY, CREAM
 
 def order_confirmation_screen(page: ft.Page, current_user: dict, cart: list, goto_menu):
@@ -19,7 +20,7 @@ def order_confirmation_screen(page: ft.Page, current_user: dict, cart: list, got
                 ft.Container(height=16),
 
                 ft.Image(
-                    src="assets/cart.png",
+                    src_base64=get_base64_image("assets/cart.png"),
                     width=120,
                     height=120,
                     fit=ft.ImageFit.CONTAIN

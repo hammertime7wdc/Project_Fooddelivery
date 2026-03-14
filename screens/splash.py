@@ -17,10 +17,13 @@ def splash_screen(page: ft.Page, current_user: dict, cart: list, goto_login, dur
                 ),
                 ft.Container(height=20),
                 ft.Text(
-                    "FOOD DELIVERY",
-                    size=30,
+                    "LK MARTIN FOOD SYSTEM",
+                    size=24,
                     weight=ft.FontWeight.BOLD,
                     color=ACCENT_DARK,
+                    text_align=ft.TextAlign.CENTER,
+                    width=320,
+                    max_lines=2,
                 ),
                 ft.Text(
                     "Fresh. Fast. Tasty.",

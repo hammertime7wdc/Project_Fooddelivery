@@ -8,6 +8,7 @@ from .ui import (
     create_header
 )
 from .handlers import create_menu_handlers, create_order_handlers
+from .sales_dashboard import create_sales_dashboard
 
 
 def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
@@ -71,6 +72,20 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     # Create order filter buttons (returns tuple of (row, buttons_dict))
     order_filter_buttons_row, order_filter_buttons = create_order_filter_buttons()
     
+    # Create menu search field
+    menu_search_field = ft.TextField(
+        hint_text="Search items by name or description...",
+        width=280,
+        bgcolor="#FFFFFF",
+        color="#000000",
+        border_color=FIELD_BORDER,
+        focused_border_color=ACCENT_PRIMARY,
+        border_radius=10,
+        prefix_icon=ft.Icons.SEARCH,
+        text_style=ft.TextStyle(color="#000000", size=12),
+        hint_style=ft.TextStyle(color="#666666", size=12),
+    )
+
     # Create order search field
     order_search_field = ft.TextField(
         hint_text="Search order, customer, item...",
@@ -115,7 +130,17 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
     )
     
     # Create menu handlers
-    menu_handlers = create_menu_handlers(page, current_user, menu_list, form_container, form_fields, uploaded_image, menu_filter_buttons)
+    menu_handlers = create_menu_handlers(
+        page,
+        current_user,
+        menu_list,
+        form_container,
+        form_fields,
+        uploaded_image,
+        menu_filter_buttons,
+        file_picker,
+        search_field=menu_search_field,
+    )
     
 
     # Create order handlers
@@ -164,7 +189,10 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                 content=ft.Column(
                                     [
                                         ft.Text("Menu Management", size=18, weight=ft.FontWeight.BOLD, color="#000000"),
-                                        
+
+                                        # Menu search bar
+                                        menu_search_field,
+
                                         # Category filter chips
                                         ft.Row([
                                             menu_filter_buttons["all"],
@@ -249,6 +277,10 @@ def owner_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                 padding=10,
                                 bgcolor="#FFFFFF",
                             )
+                        ),
+                        ft.Tab(
+                            text="Sales",
+                            content=create_sales_dashboard(page)
                         )
                     ]
                 )

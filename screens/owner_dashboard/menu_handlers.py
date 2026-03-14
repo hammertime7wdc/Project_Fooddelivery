@@ -1,14 +1,14 @@
 import flet as ft
-import shutil
 import os
-import uuid
 import imghdr
+import uuid
 from core.database import (
 	get_all_menu_items,
 	create_menu_item,
 	update_menu_item,
 	delete_menu_item,
 )
+from core.cloudinary_storage import upload_menu_image
 from utils import (
 	show_snackbar,
 	create_image_widget,
@@ -20,11 +20,99 @@ from utils import (
 )
 
 
-def create_menu_handlers(page, current_user, menu_list, form_container, fields, uploaded_image, menu_filter_buttons):
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
+
+
+def create_menu_handlers(page, current_user, menu_list, form_container, fields, uploaded_image, menu_filter_buttons, file_picker=None, search_field=None):
 	"""Create all menu-related handlers"""
 
 	current_menu_filter = {"value": "All"}
+	current_search = {"value": ""}
 	edit_mode = {"active": False, "item_id": None}
+	pending_uploads = {}
+	upload_state = {"in_progress": False}
+
+	def _resolve_pending_upload_path(file_name):
+		file_path = pending_uploads.pop(file_name, None)
+		if file_path:
+			return file_path
+
+		# Fallback: sometimes event key differs from original selected file name.
+		if len(pending_uploads) == 1:
+			_, only_path = pending_uploads.popitem()
+			return only_path
+
+		fallback_path = os.path.join(UPLOAD_DIR, file_name.replace("/", os.sep))
+		if os.path.exists(fallback_path):
+			return fallback_path
+
+		return None
+
+	def finalize_cloudinary_upload(file_path):
+		detected_type = imghdr.what(file_path)
+		if detected_type not in ("jpeg", "png", "gif"):
+			upload_state["in_progress"] = False
+			show_snackbar(page, "Invalid image file")
+			return
+
+		success, image_url, error_message = upload_menu_image(file_path)
+		if not success:
+			upload_state["in_progress"] = False
+			print(error_message)
+			show_snackbar(page, f"Cloud upload failed: {error_message}")
+			return
+
+		uploaded_image["data"] = image_url
+		uploaded_image["type"] = "url"
+		upload_state["in_progress"] = False
+		fields["image_preview"].content = ft.Image(
+			src=image_url,
+			width=150,
+			height=150,
+			fit=ft.ImageFit.COVER,
+			border_radius=10,
+		)
+		show_snackbar(page, "Image uploaded!", success=True)
+		page.update()
+
+	def handle_upload_progress(e: ft.FilePickerUploadEvent):
+		if e.error:
+			file_path = _resolve_pending_upload_path(e.file_name)
+			upload_state["in_progress"] = False
+			if file_path and os.path.exists(file_path):
+				try:
+					os.remove(file_path)
+				except OSError:
+					pass
+			show_snackbar(page, f"Upload failed: {e.error}")
+			return
+
+		if e.progress is None or e.progress < 1.0:
+			return
+
+		file_path = _resolve_pending_upload_path(e.file_name)
+		if not file_path or not os.path.exists(file_path):
+			upload_state["in_progress"] = False
+			show_snackbar(page, "Uploaded file could not be found on server.")
+			return
+
+		try:
+			finalize_cloudinary_upload(file_path)
+		finally:
+			try:
+				os.remove(file_path)
+			except OSError:
+				pass
+
+	if file_picker is not None:
+		file_picker.on_upload = handle_upload_progress
+
+	def on_menu_search_change(e):
+		current_search["value"] = e.control.value.lower().strip()
+		load_menu(current_menu_filter["value"])
+
+	if search_field is not None:
+		search_field.on_change = on_menu_search_change
 
 	def update_menu_filter_buttons(active_filter):
 		"""Update menu chip colors to show active filter"""
@@ -45,13 +133,11 @@ def create_menu_handlers(page, current_user, menu_list, form_container, fields, 
 				chip.bgcolor = "#E0E0E0"
 				chip.content.color = TEXT_DARK
 
-		page.update()
-
 	def load_menu(filter_category="All"):
 		current_menu_filter["value"] = filter_category
 		update_menu_filter_buttons(filter_category)
 
-		menu_list.controls.clear()
+		new_controls = []
 		all_items = get_all_menu_items()
 
 		if filter_category == "All":
@@ -59,16 +145,23 @@ def create_menu_handlers(page, current_user, menu_list, form_container, fields, 
 		else:
 			items = [item for item in all_items if item.get("category") == filter_category]
 
+		if current_search["value"]:
+			query = current_search["value"]
+			items = [
+				item for item in items
+				if query in item["name"].lower() or query in item.get("description", "").lower()
+			]
+
 		count_text = ft.Text(
 			f"Showing {len(items)} item(s)" + (f" in category '{filter_category}'" if filter_category != "All" else ""),
 			size=15,
 			color="#000000",
 			weight=ft.FontWeight.BOLD,
 		)
-		menu_list.controls.append(count_text)
+		new_controls.append(count_text)
 
 		if not items:
-			menu_list.controls.append(
+			new_controls.append(
 				ft.Container(
 					content=ft.Text(
 						"No items found in this category.",
@@ -182,7 +275,9 @@ def create_menu_handlers(page, current_user, menu_list, form_container, fields, 
 				bgcolor=FIELD_BG,
 			)
 
-			menu_list.controls.append(card)
+			new_controls.append(card)
+
+		menu_list.controls = new_controls
 
 		page.update()
 
@@ -216,54 +311,46 @@ def create_menu_handlers(page, current_user, menu_list, form_container, fields, 
 		page.update()
 
 	def handle_file_pick(e: ft.FilePickerResultEvent):
-		if e.files:
-			file = e.files[0]
-			if not getattr(file, "path", None):
-				show_snackbar(page, "Cannot access local file path in browser mode. Run desktop mode for image upload.")
-				return
-			if not os.path.exists(file.path):
-				show_snackbar(page, "Selected file is not accessible. Please choose another image.")
-				return
-			if file.size > 3145728:
-				show_snackbar(page, "Image size must be under 3MB")
-				return
-			if not file.name.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
-				show_snackbar(page, "Only JPG, PNG, GIF allowed")
-				return
+		if not e.files:
+			return
+		file = e.files[0]
+		if file.size > 3145728:
+			show_snackbar(page, "Image size must be under 3MB")
+			return
+		if not file.name.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+			show_snackbar(page, "Only JPG, PNG, GIF allowed")
+			return
 
-			detected_type = imghdr.what(file.path)
-			if detected_type not in ("jpeg", "png", "gif"):
-				show_snackbar(page, "Invalid image file")
+		if not getattr(file, "path", None):
+			if file_picker is None:
+				show_snackbar(page, "Browser upload is not available right now.")
 				return
 
-			try:
-				file_ext = os.path.splitext(file.name)[1]
-				filename = f"{uuid.uuid4()}{file_ext}"
-				assets_path = "assets/menu"
-				dest_path = os.path.join(assets_path, filename)
+			file_extension = os.path.splitext(file.name)[1].lower()
+			server_name = f"{uuid.uuid4().hex}{file_extension}"
+			server_path = os.path.join(UPLOAD_DIR, server_name)
+			pending_uploads[file.name] = server_path
+			pending_uploads[server_name] = server_path
+			upload_state["in_progress"] = True
+			upload_url = page.get_upload_url(server_name, 600)
+			file_picker.upload([
+				ft.FilePickerUploadFile(name=file.name, upload_url=upload_url)
+			])
+			show_snackbar(page, "Uploading image to Cloudinary...")
+			return
 
-				os.makedirs(assets_path, exist_ok=True)
-				shutil.copy(file.path, dest_path)
-
-				uploaded_image["data"] = filename
-				uploaded_image["type"] = "path"
-
-				fields["image_preview"].content = ft.Image(
-					src=dest_path,
-					width=150,
-					height=150,
-					fit=ft.ImageFit.COVER,
-					border_radius=10,
-				)
-				show_snackbar(page, "Image uploaded successfully!")
-				page.update()
-			except Exception as ex:
-				print(f"Upload error: {ex}")
-				show_snackbar(page, "Upload failed. Please try another image.")
+		if not os.path.exists(file.path):
+			show_snackbar(page, "Selected file is not accessible.")
+			return
+		finalize_cloudinary_upload(file.path)
 
 	def save_item(e):
 		if not fields["name"].value or not fields["desc"].value or not fields["price"].value:
 			show_snackbar(page, "Please fill all fields!")
+			return
+
+		if upload_state["in_progress"]:
+			show_snackbar(page, "Please wait for image upload to finish before saving.")
 			return
 
 		stock_value = fields["stock"].value.strip() if fields["stock"].value else "0"

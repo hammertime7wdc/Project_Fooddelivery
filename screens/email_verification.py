@@ -1,10 +1,15 @@
 import flet as ft
+import re
+import threading
+import time
 from core.auth import verify_signup_code, resend_signup_code
 from core.image_utils import get_base64_image
 from utils import show_snackbar, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN
 
 
 def email_verification_screen(page: ft.Page, current_user: dict, cart: list, email: str, goto_login):
+    resend_cooldown = {"active": False}
+
     masked_email = email
     if "@" in email:
         local, domain = email.split("@", 1)
@@ -39,6 +44,44 @@ def email_verification_screen(page: ft.Page, current_user: dict, cart: list, ema
         token_field.border_width = 2
         page.update()
 
+    resend_status_text = ft.Text("", size=11, color="#666666", visible=False, text_align=ft.TextAlign.CENTER)
+
+    resend_status_container = ft.Container(
+        content=resend_status_text,
+        width=300,
+        height=18,
+        alignment=ft.alignment.center,
+    )
+
+    def _set_resend_state(enabled: bool):
+        resend_button.disabled = not enabled
+        page.update()
+
+    def start_resend_countdown(seconds: int):
+        seconds = max(1, int(seconds))
+
+        if resend_cooldown["active"]:
+            return
+
+        resend_cooldown["active"] = True
+
+        def _timer():
+            _set_resend_state(False)
+            remaining = seconds
+            while remaining > 0:
+                resend_status_text.value = f"Resend in {remaining}s"
+                resend_status_text.visible = True
+                page.update()
+                time.sleep(1)
+                remaining -= 1
+
+            resend_status_text.visible = False
+            resend_status_text.value = ""
+            resend_cooldown["active"] = False
+            _set_resend_state(True)
+
+        threading.Thread(target=_timer, daemon=True).start()
+
     def verify_click(e):
         clear_code_error()
         code = (token_field.value or "").strip()
@@ -59,8 +102,6 @@ def email_verification_screen(page: ft.Page, current_user: dict, cart: list, ema
             page.update()
             
             # Redirect after brief delay
-            import threading
-            import time
             def redirect():
                 time.sleep(1)
                 goto_login()
@@ -80,11 +121,33 @@ def email_verification_screen(page: ft.Page, current_user: dict, cart: list, ema
             show_snackbar(page, msg, error=True)
 
     def resend_click(e):
+        if resend_cooldown["active"]:
+            return
+
+        _set_resend_state(False)
+        resend_status_text.value = "Sending code..."
+        resend_status_text.visible = True
+        page.update()
+
         success, msg = resend_signup_code(email)
         if success:
             show_snackbar(page, msg, success=True)
+            start_resend_countdown(15)
         else:
             show_snackbar(page, msg, error=True)
+            cooldown_match = re.search(r"Please wait\s+(\d+)s", msg or "")
+            if cooldown_match:
+                start_resend_countdown(int(cooldown_match.group(1)))
+            else:
+                resend_status_text.visible = False
+                resend_status_text.value = ""
+                _set_resend_state(True)
+
+    resend_button = ft.TextButton(
+        "Didn’t receive it? Resend code",
+        on_click=resend_click,
+        style=ft.ButtonStyle(color=DARK_GREEN)
+    )
 
     return ft.Container(
         content=ft.Column(
@@ -121,11 +184,8 @@ def email_verification_screen(page: ft.Page, current_user: dict, cart: list, ema
                                 style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
                             ),
                             ft.Container(height=6),
-                            ft.TextButton(
-                                "Didn’t receive it? Resend code",
-                                on_click=resend_click,
-                                style=ft.ButtonStyle(color=DARK_GREEN)
-                            ),
+                            resend_button,
+                            resend_status_container,
                             ft.TextButton(
                                 "← Back to login",
                                 on_click=goto_login,

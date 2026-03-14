@@ -1,10 +1,13 @@
 import flet as ft
+import re
+import threading
+import time
 from core.auth import request_password_reset_code, reset_password_with_code, validate_password, get_password_strength, validate_email
 from core.image_utils import get_base64_image
 from utils import show_snackbar, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
-    state = {"code_sent": False}
+    state = {"code_sent": False, "resend_cooldown": False}
 
     email_field = ft.TextField(
         label="Enter your email",
@@ -108,6 +111,44 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
         on_click=None,
     )
 
+    resend_status_text = ft.Text("", size=11, color="#666666", visible=False, text_align=ft.TextAlign.CENTER)
+
+    resend_status_container = ft.Container(
+        content=resend_status_text,
+        width=300,
+        height=18,
+        alignment=ft.alignment.center,
+    )
+
+    def _set_resend_state(enabled: bool):
+        resend_button.disabled = not enabled
+        page.update()
+
+    def start_resend_countdown(seconds: int):
+        seconds = max(1, int(seconds))
+
+        if state["resend_cooldown"]:
+            return
+
+        state["resend_cooldown"] = True
+
+        def _timer():
+            _set_resend_state(False)
+            remaining = seconds
+            while remaining > 0:
+                resend_status_text.value = f"Resend in {remaining}s"
+                resend_status_text.visible = True
+                page.update()
+                time.sleep(1)
+                remaining -= 1
+
+            resend_status_text.visible = False
+            resend_status_text.value = ""
+            state["resend_cooldown"] = False
+            _set_resend_state(True)
+
+        threading.Thread(target=_timer, daemon=True).start()
+
     def clear_field_error(field):
         field.border_color = FIELD_BORDER
         field.error_text = None
@@ -192,6 +233,7 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
 
     def show_code_step(email_value: str):
         state["code_sent"] = True
+        send_code_button.visible = False
         code_field.visible = True
         new_password_field.visible = True
         confirm_password_field.visible = True
@@ -199,6 +241,8 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
         code_info_text.visible = True
         reset_button.visible = True
         resend_button.visible = True
+        resend_status_text.visible = False
+        resend_status_text.value = ""
         page.update()
 
     def send_code_click(e):
@@ -209,12 +253,43 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
             show_snackbar(page, "Please enter your email")
             return
 
-        success, msg = request_password_reset_code(email_value)
+        success, msg = request_password_reset_code(email_value, is_resend=False)
         if success:
             show_snackbar(page, msg, success=True)
             show_code_step(email_value)
         else:
             show_snackbar(page, msg, error=True)
+
+    def resend_click(e):
+        if state["resend_cooldown"]:
+            return
+
+        reset_field_errors()
+        email_value = (email_field.value or "").strip().lower()
+        if not email_value:
+            set_field_error(email_field, "Please enter your email")
+            show_snackbar(page, "Please enter your email")
+            return
+
+        _set_resend_state(False)
+        resend_status_text.value = "Sending code..."
+        resend_status_text.visible = True
+        page.update()
+
+        success, msg = request_password_reset_code(email_value, is_resend=True)
+        if success:
+            show_snackbar(page, msg, success=True)
+            show_code_step(email_value)
+            start_resend_countdown(60)
+        else:
+            show_snackbar(page, msg, error=True)
+            cooldown_match = re.search(r"Please wait\s+(\d+)s", msg or "")
+            if cooldown_match:
+                start_resend_countdown(int(cooldown_match.group(1)))
+            else:
+                resend_status_text.visible = False
+                resend_status_text.value = ""
+                _set_resend_state(True)
 
     def do_reset_click(e):
         reset_field_errors()
@@ -284,7 +359,7 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
 
     send_code_button.on_click = send_code_click
     reset_button.on_click = do_reset_click
-    resend_button.on_click = send_code_click
+    resend_button.on_click = resend_click
 
     return ft.Container(
         content=ft.Column(
@@ -324,6 +399,7 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
                             ft.Container(height=8),
                             reset_button,
                             resend_button,
+                            resend_status_container,
                             ft.TextButton(
                                 "← Back to login",
                                 on_click=goto_login,

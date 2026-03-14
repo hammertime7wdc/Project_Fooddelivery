@@ -1,10 +1,15 @@
 """Profile screen UI components"""
 import flet as ft
+import re
+import threading
+import time
 from utils import create_profile_pic_widget, TEXT_DARK, FIELD_BG, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, ORANGE
 from core.auth import get_user_by_id
+from core.phone_utils import display_ph_local
 from utils import show_snackbar
 from .handlers import (
     handle_pic_pick,
+    handle_pic_upload_progress,
     save_profile,
     update_password_strength,
     save_profile_picture,
@@ -91,8 +96,11 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     
     contact_field = ft.TextField(
         label="Contact Number", 
-        value=user["contact"] or "", 
+        value=display_ph_local(user["contact"] or ""),
         width=input_width,
+        prefix_text="+63 ",
+        max_length=10,
+        input_filter=ft.NumbersOnlyInputFilter(),
         bgcolor="white",
         color=TEXT_DARK,
         border_color=FIELD_BORDER,
@@ -100,7 +108,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         border_radius=10,
         text_style=ft.TextStyle(color=TEXT_DARK),
         label_style=ft.TextStyle(color=TEXT_DARK),
-        hint_text="e.g. +63 912 345 6789"
+        hint_text="e.g. 9XXXXXXXXX"
     )
 
     current_password = ft.TextField(
@@ -198,7 +206,39 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
         "Resend Code",
         visible=False,
         style=ft.ButtonStyle(color=ACCENT_DARK),
-        on_click=lambda e: send_profile_reset_code_handler(
+        on_click=None,
+    )
+
+    reset_resend_state = {"cooldown": False}
+
+    def _set_resend_button_state(enabled: bool):
+        resend_code_button.disabled = not enabled
+        page.update()
+
+    def start_profile_resend_countdown(seconds: int):
+        seconds = max(1, int(seconds))
+        if reset_resend_state["cooldown"]:
+            return
+
+        reset_resend_state["cooldown"] = True
+
+        def _timer():
+            _set_resend_button_state(False)
+            remaining = seconds
+            while remaining > 0:
+                resend_code_button.text = f"Resend in {remaining}s"
+                page.update()
+                time.sleep(1)
+                remaining -= 1
+
+            resend_code_button.text = "Resend Code"
+            reset_resend_state["cooldown"] = False
+            _set_resend_button_state(True)
+
+        threading.Thread(target=_timer, daemon=True).start()
+
+    def handle_send_reset_code_click(e):
+        success, _ = send_profile_reset_code_handler(
             page,
             current_user,
             current_password,
@@ -208,7 +248,47 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
             reset_code_info,
             verify_code_button,
             resend_code_button,
+            is_resend=False,
         )
+        if success:
+            send_reset_code_button.visible = False
+            reset_resend_state["cooldown"] = False
+            resend_code_button.text = "Resend Code"
+            _set_resend_button_state(True)
+
+    def handle_resend_code_click(e):
+        if reset_resend_state["cooldown"]:
+            return
+
+        success, msg = send_profile_reset_code_handler(
+            page,
+            current_user,
+            current_password,
+            new_password,
+            confirm_password,
+            reset_code_field,
+            reset_code_info,
+            verify_code_button,
+            resend_code_button,
+            is_resend=True,
+        )
+
+        if success:
+            start_profile_resend_countdown(60)
+        else:
+            cooldown_match = re.search(r"Please wait\s+(\d+)s", msg or "")
+            if cooldown_match:
+                start_profile_resend_countdown(int(cooldown_match.group(1)))
+
+    resend_code_button.on_click = handle_resend_code_click
+
+    send_reset_code_button = ft.ElevatedButton(
+        "Send Reset Code",
+        bgcolor=ORANGE,
+        color=CREAM,
+        width=input_width,
+        style=primary_button_style,
+        on_click=handle_send_reset_code_click
     )
 
     # ==================== PROFILE PICTURE ====================
@@ -226,8 +306,28 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
     )
 
     uploaded_pic = {"data": user.get("profile_picture"), "type": user.get("pic_type") or "emoji"}
+    upload_state = {"in_progress": False}
+    pending_uploads = {}
 
-    file_picker = ft.FilePicker(on_result=lambda e: handle_pic_pick(e, current_user, profile_pic_preview, uploaded_pic, page))
+    file_picker = ft.FilePicker()
+    file_picker.on_result = lambda e: handle_pic_pick(
+        e,
+        current_user,
+        profile_pic_preview,
+        uploaded_pic,
+        page,
+        file_picker,
+        upload_state,
+        pending_uploads,
+    )
+    file_picker.on_upload = lambda e: handle_pic_upload_progress(
+        e,
+        profile_pic_preview,
+        uploaded_pic,
+        page,
+        upload_state,
+        pending_uploads,
+    )
     page.overlay.append(file_picker)
 
     # ==================== SECTIONS ====================
@@ -261,9 +361,9 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                     color="#ffffff",
                     width=input_width,
                     style=primary_button_style,
-                    on_click=lambda e: save_profile_picture(page, current_user, uploaded_pic)
+                    on_click=lambda e: save_profile_picture(page, current_user, uploaded_pic, upload_state)
                 ),
-                ft.Text("We support PNGs, JPEGs and GIFs under 2MB", size=10, color="#888888", italic=True)
+                ft.Text("We support PNGs, JPEGs and GIFs under 3MB", size=10, color="#888888", italic=True)
             ],
             spacing=15,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER
@@ -297,7 +397,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                     style=primary_button_style,
                     on_click=lambda e: save_profile(page, current_user, name_field, email_field, 
                                                     address_field, contact_field, name_error, 
-                                                    uploaded_pic, back_callback)
+                                                    uploaded_pic, back_callback, upload_state)
                 )
             ],
             spacing=12
@@ -346,24 +446,7 @@ def profile_screen(page: ft.Page, current_user: dict, cart: list, back_callback)
                 
                 ft.Container(height=10),
                 ft.Text("Step 1: Request a verification code", size=11, color="#666666"),
-                ft.ElevatedButton(
-                    "Send Reset Code",
-                    bgcolor=ORANGE,
-                    color=CREAM,
-                    width=input_width,
-                    style=primary_button_style,
-                    on_click=lambda e: send_profile_reset_code_handler(
-                        page,
-                        current_user,
-                        current_password,
-                        new_password,
-                        confirm_password,
-                        reset_code_field,
-                        reset_code_info,
-                        verify_code_button,
-                        resend_code_button,
-                    )
-                ),
+                send_reset_code_button,
                 ft.Container(height=4),
                 ft.Text("Step 2: Enter code and set your new password", size=11, color="#666666"),
                 reset_code_info,

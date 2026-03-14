@@ -10,9 +10,12 @@ from utils import (
     DARK_GREEN,
 )
 from .handlers import create_admin_handlers
+from .fraud_risk import create_fraud_risk_tab
 
 
 def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
+    fraud_risk_tab_content = create_fraud_risk_tab(page, current_user)
+
     users_list = ft.GridView(
         expand=True,
         max_extent=360,
@@ -528,6 +531,10 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
                                 padding=10,
                                 bgcolor="#FFFFFF",
                             ),
+                        ),
+                        ft.Tab(
+                            text="Fraud Risk",
+                            content=fraud_risk_tab_content,
                         ),
                     ],
                 ),

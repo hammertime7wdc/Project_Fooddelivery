@@ -1,10 +1,10 @@
 """Profile handlers for profile updates, password changes, and file uploads"""
-import re
+import flet as ft
 import uuid
-import shutil
 import os
 import imghdr
 import time
+from core.phone_utils import normalize_ph_to_e164
 from core.auth import (
     get_user_by_id,
     update_user_profile,
@@ -17,8 +17,104 @@ from core.auth import (
     reset_password_with_code,
     verify_current_password,
 )
+from core.cloudinary_storage import upload_profile_image
 from utils import show_snackbar
 from .loading_screen import show_loading, hide_loading
+
+
+PROFILE_UPLOAD_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "uploads",
+)
+
+
+def _set_profile_preview(profile_pic_preview, image_data, image_type):
+    if image_type == "url":
+        profile_pic_preview.content = ft.Image(
+            src=image_data,
+            width=150,
+            height=150,
+            fit=ft.ImageFit.COVER,
+            border_radius=ft.border_radius.all(75),
+        )
+    elif image_type == "base64":
+        profile_pic_preview.content = ft.Image(
+            src_base64=image_data,
+            width=150,
+            height=150,
+            fit=ft.ImageFit.COVER,
+            border_radius=ft.border_radius.all(75),
+        )
+    else:
+        profile_pic_preview.content = ft.Icon(ft.Icons.PERSON, size=120, color="grey")
+
+
+def _resolve_pending_upload_path(file_name, pending_uploads):
+    file_path = pending_uploads.pop(file_name, None)
+    if file_path:
+        return file_path
+
+    if len(pending_uploads) == 1:
+        _, only_path = pending_uploads.popitem()
+        return only_path
+
+    fallback_path = os.path.join(PROFILE_UPLOAD_DIR, file_name.replace("/", os.sep))
+    if os.path.exists(fallback_path):
+        return fallback_path
+
+    return None
+
+
+def finalize_profile_upload(file_path, profile_pic_preview, uploaded_pic, page, upload_state):
+    detected_type = imghdr.what(file_path)
+    if detected_type not in ("jpeg", "png", "gif"):
+        upload_state["in_progress"] = False
+        show_snackbar(page, "Invalid image file", error=True)
+        return
+
+    success, image_url, error_message = upload_profile_image(file_path)
+    if not success:
+        upload_state["in_progress"] = False
+        print(error_message)
+        show_snackbar(page, f"Cloud upload failed: {error_message}", error=True)
+        return
+
+    uploaded_pic["data"] = image_url
+    uploaded_pic["type"] = "url"
+    upload_state["in_progress"] = False
+    _set_profile_preview(profile_pic_preview, image_url, "url")
+    show_snackbar(page, "Profile picture uploaded!", success=True)
+    page.update()
+
+
+def handle_pic_upload_progress(e, profile_pic_preview, uploaded_pic, page, upload_state, pending_uploads):
+    if e.error:
+        file_path = _resolve_pending_upload_path(e.file_name, pending_uploads)
+        upload_state["in_progress"] = False
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+        show_snackbar(page, f"Upload failed: {e.error}", error=True)
+        return
+
+    if e.progress is None or e.progress < 1.0:
+        return
+
+    file_path = _resolve_pending_upload_path(e.file_name, pending_uploads)
+    if not file_path or not os.path.exists(file_path):
+        upload_state["in_progress"] = False
+        show_snackbar(page, "Uploaded file could not be found on server.", error=True)
+        return
+
+    try:
+        finalize_profile_upload(file_path, profile_pic_preview, uploaded_pic, page, upload_state)
+    finally:
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
 
 
 def update_password_strength(password, password_strength_bar, password_strength_text, page, new_password_field=None, password_error=None):
@@ -72,9 +168,13 @@ def update_password_strength(password, password_strength_bar, password_strength_
     page.update()
 
 
-def save_profile_picture(page, current_user, uploaded_pic):
+def save_profile_picture(page, current_user, uploaded_pic, upload_state=None):
     """Save only the profile picture"""
     from core.auth import update_user_profile
+
+    if upload_state and upload_state.get("in_progress"):
+        show_snackbar(page, "Please wait for the upload to finish before saving.", error=True)
+        return
     
     if not uploaded_pic["data"]:
         show_snackbar(page, "Please select a picture first", error=True)
@@ -109,7 +209,7 @@ def save_profile_picture(page, current_user, uploaded_pic):
                 # Update current user session
                 current_user["user"]["profile_picture"] = uploaded_pic["data"]
                 current_user["user"]["pic_type"] = uploaded_pic["type"]
-                show_snackbar(page, "Profile picture saved successfully!", bgcolor="green")
+                show_snackbar(page, "Profile picture saved successfully!", success=True)
             else:
                 show_snackbar(page, f"Error: {msg}", error=True)
         except Exception as e:
@@ -120,70 +220,52 @@ def save_profile_picture(page, current_user, uploaded_pic):
     page.run_task(_save_task)
 
 
-def handle_pic_pick(e, current_user, profile_pic_preview, uploaded_pic, page):
+def handle_pic_pick(e, current_user, profile_pic_preview, uploaded_pic, page, file_picker=None, upload_state=None, pending_uploads=None):
     """Handle profile picture file selection and upload"""
-    from flet import FilePickerResultEvent
-    
-    if e.files:
-        file = e.files[0]
-        
-        # Check if file path exists
-        if not file or not file.path:
-            show_snackbar(page, "File not found")
-            return
-            
-        if file.size > 1048576:
-            show_snackbar(page, "Image size must be under 1MB")
-            return
-        if not file.name.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
-            show_snackbar(page, "Only JPG, PNG, GIF allowed")
+    if not e.files:
+        return
+
+    file = e.files[0]
+
+    if file.size > 3145728:
+        show_snackbar(page, "Image size must be under 3MB", error=True)
+        return
+    if not file.name.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+        show_snackbar(page, "Only JPG, PNG, GIF allowed", error=True)
+        return
+
+    if not getattr(file, "path", None):
+        if file_picker is None or upload_state is None or pending_uploads is None:
+            show_snackbar(page, "Browser upload is not available right now.", error=True)
             return
 
-        # Check file type
-        try:
-            detected_type = imghdr.what(file.path)
-            if detected_type not in ("jpeg", "png", "gif"):
-                show_snackbar(page, "Invalid image file")
-                return
-        except:
-            show_snackbar(page, "Could not verify image file")
-            return
-            
-        try:
-            import flet as ft
-            # Generate unique filename for profile picture
-            user_id = current_user["user"]["id"]
-            file_ext = os.path.splitext(file.name)[1].lower()
-            unique_filename = f"profile_{user_id}_{uuid.uuid4().hex[:8]}{file_ext}"
-            
-            # Copy file to assets/profiles/
-            profiles_dir = "assets/profiles"
-            os.makedirs(profiles_dir, exist_ok=True)
-            dest_path = os.path.join(profiles_dir, unique_filename)
-            shutil.copy(file.path, dest_path)
-            
-            # Store only filename in database (file-based approach)
-            uploaded_pic["data"] = unique_filename
-            uploaded_pic["type"] = "path"
-            
-            # Update preview to show file path
-            profile_pic_preview.content = ft.Image(
-                src=dest_path,
-                width=150,
-                height=150,
-                fit=ft.ImageFit.COVER,
-                border_radius=ft.border_radius.all(75)
-            )
-            show_snackbar(page, "Profile picture uploaded!")
-            page.update()
-        except Exception as ex:
-            print(f"Profile upload error: {ex}")
-            show_snackbar(page, "Upload failed. Please try another image.")
+        file_extension = os.path.splitext(file.name)[1].lower()
+        server_name = f"profile_{current_user['user']['id']}_{uuid.uuid4().hex}{file_extension}"
+        server_path = os.path.join(PROFILE_UPLOAD_DIR, server_name)
+        pending_uploads[file.name] = server_path
+        pending_uploads[server_name] = server_path
+        upload_state["in_progress"] = True
+        upload_url = page.get_upload_url(server_name, 600)
+        file_picker.upload([
+            ft.FilePickerUploadFile(name=file.name, upload_url=upload_url)
+        ])
+        show_snackbar(page, "Uploading profile picture to Cloudinary...")
+        return
+
+    if not os.path.exists(file.path):
+        show_snackbar(page, "Selected file is not accessible.", error=True)
+        return
+
+    finalize_profile_upload(file.path, profile_pic_preview, uploaded_pic, page, upload_state or {"in_progress": False})
 
 
 def save_profile(page, current_user, name_field, email_field, address_field, contact_field, 
-                 name_error, uploaded_pic, back_callback):
+                 name_error, uploaded_pic, back_callback, upload_state=None):
     """Save profile changes"""
+    if upload_state and upload_state.get("in_progress"):
+        show_snackbar(page, "Please wait for the upload to finish before saving.", error=True)
+        return
+
     has_error = False
     
     valid, msg = validate_full_name(name_field.value)
@@ -200,9 +282,11 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
         page.update()
         return
     
-    if contact_field.value and len(contact_field.value) > 0:
-        if not re.match(r'^[\d\s\-\+\(\)]+$', contact_field.value):
-            show_snackbar(page, "Invalid contact number format")
+    normalized_contact = None
+    if contact_field.value and len(contact_field.value.strip()) > 0:
+        normalized_contact = normalize_ph_to_e164(contact_field.value)
+        if not normalized_contact:
+            show_snackbar(page, "Invalid PH mobile number. Use 9XXXXXXXXX.")
             return
     
     loading = show_loading(page, "Saving profile...")
@@ -220,7 +304,7 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
             name_field.value.strip(),
             user["email"],
             address=address_field.value.strip() if address_field.value else None,
-            contact=contact_field.value.strip() if contact_field.value else None,
+            contact=normalized_contact,
             profile_pic=uploaded_pic["data"],
             pic_type=uploaded_pic["type"]
         )
@@ -232,7 +316,7 @@ def save_profile(page, current_user, name_field, email_field, address_field, con
             current_user["user"]["full_name"] = name_field.value.strip()
             current_user["user"]["email"] = user["email"]
             current_user["user"]["address"] = address_field.value.strip() if address_field.value else None
-            current_user["user"]["contact"] = contact_field.value.strip() if contact_field.value else None
+            current_user["user"]["contact"] = normalized_contact
             current_user["user"]["profile_picture"] = uploaded_pic["data"]
             current_user["user"]["pic_type"] = uploaded_pic["type"]
             
@@ -299,6 +383,7 @@ def send_profile_reset_code_handler(
     code_info_text,
     verify_button,
     resend_button,
+    is_resend=False,
 ):
     """Send OTP reset code after validating current password and new password fields."""
     validation_error_message = "Please complete all required fields with valid data before sending a code."
@@ -325,17 +410,17 @@ def send_profile_reset_code_handler(
 
     if not user_id:
         show_snackbar(page, "User not found", error=True)
-        return
+        return False, "User not found"
 
     if not email_value:
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
     if not current_password_value:
         set_field_error(current_password, "Please enter your current password")
         page.update()
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
     if not new_password_value or not confirm_password_value:
         if not new_password_value:
@@ -344,35 +429,35 @@ def send_profile_reset_code_handler(
             set_field_error(confirm_password, "Please confirm your new password")
         page.update()
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
     valid_password, pwd_msg = validate_password(new_password_value)
     if not valid_password:
         set_field_error(new_password, pwd_msg)
         page.update()
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
     if new_password_value != confirm_password_value:
         set_field_error(confirm_password, "Passwords do not match")
         page.update()
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
     if current_password_value == new_password_value:
         set_field_error(new_password, "Must be different from current password")
         page.update()
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
     verified, verify_msg = verify_current_password(user_id, current_password_value)
     if not verified:
         set_field_error(current_password, verify_msg)
         page.update()
         show_snackbar(page, validation_error_message, error=True)
-        return
+        return False, validation_error_message
 
-    success, msg = request_password_reset_code(email_value)
+    success, msg = request_password_reset_code(email_value, is_resend=is_resend)
     if success:
         clear_field_error(current_password)
         clear_field_error(new_password)
@@ -387,6 +472,7 @@ def send_profile_reset_code_handler(
         show_snackbar(page, msg, error=True)
 
     page.update()
+    return success, msg
 
 
 def reset_password_with_profile_code_handler(

@@ -17,14 +17,14 @@ def create_menu_loader(page, cart, current_user, menu_list, ui_update_lock, curr
         with ui_update_lock:
             if reset_page:
                 current_page["page"] = 1
-                
-            menu_list.controls.clear()
+
+            new_controls = []
 
             try:
                 # Handle Favorites category
                 if category == "❤️ Favorites":
                     if not favorites:
-                        menu_list.controls.append(
+                        new_controls.append(
                             ft.Container(
                                 content=ft.Column([
                                     ft.Icon(ft.Icons.FAVORITE_BORDER, size=80, color="grey"),
@@ -35,6 +35,7 @@ def create_menu_loader(page, cart, current_user, menu_list, ui_update_lock, curr
                                 alignment=ft.alignment.center
                             )
                         )
+                        menu_list.controls = new_controls
                         page.update()
                         return
                     
@@ -70,7 +71,7 @@ def create_menu_loader(page, cart, current_user, menu_list, ui_update_lock, curr
 
                 # Empty state when no items found
                 if not items:
-                    menu_list.controls.append(
+                    new_controls.append(
                         ft.Container(
                             content=ft.Column([
                                 ft.Icon(ft.Icons.SEARCH_OFF, size=80, color="grey"),
@@ -81,19 +82,27 @@ def create_menu_loader(page, cart, current_user, menu_list, ui_update_lock, curr
                             alignment=ft.alignment.center
                         )
                     )
+                    menu_list.controls = new_controls
                     page.update()
                     return
 
+                seen_ids = set()
                 for item in items:
+                    item_id = item.get("id")
+                    if item_id in seen_ids:
+                        continue
+                    seen_ids.add(item_id)
                     card = create_menu_item_card(item, page, cart, user_id, favorites, ui_update_lock, add_to_cart)
-                    menu_list.controls.append(card)
+                    new_controls.append(card)
+
+                menu_list.controls = new_controls
                 
                 # Update once after all items added
                 page.update()
                 
             except Exception as e:
                 print(f"Error loading menu: {e}")
-                menu_list.controls.append(
+                new_controls.append(
                     ft.Container(
                         content=ft.Column([
                             ft.Icon(ft.Icons.ERROR_OUTLINE, size=80, color="#F44336"),
@@ -104,6 +113,7 @@ def create_menu_loader(page, cart, current_user, menu_list, ui_update_lock, curr
                         alignment=ft.alignment.center
                     )
                 )
+                menu_list.controls = new_controls
                 page.update()
     
     return load_menu

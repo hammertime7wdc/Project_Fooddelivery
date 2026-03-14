@@ -362,11 +362,13 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                             ),
                             ft.Container(height=8),
                             ft.Text(
-                                "FOOD DELIVERY",
-                                size=30,
+                                "LK MARTIN FOOD SYSTEM",
+                                size=24,
                                 weight=ft.FontWeight.BOLD,
                                 color=CREAM,
-                                text_align=ft.TextAlign.CENTER
+                                text_align=ft.TextAlign.CENTER,
+                                width=320,
+                                max_lines=2
                             ),
                             ft.Text(
                                 "Fresh meals, fast delivery",
