@@ -2,6 +2,7 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,31 +10,64 @@ load_dotenv()
 
 class EmailSender:
     def __init__(self):
+        self.email_provider = (os.getenv("EMAIL_PROVIDER", "smtp") or "smtp").strip().lower()
+
         self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
         self.sender_email = os.getenv("SMTP_EMAIL")
         self.sender_password = os.getenv("SMTP_PASSWORD")
         self.sender_name = os.getenv("SMTP_SENDER_NAME", "LK Martin Food Systems")
 
+        self.resend_api_key = (os.getenv("RESEND_API_KEY") or "").strip()
+        self.resend_from = (os.getenv("EMAIL_FROM") or "").strip()
+
     def is_configured(self):
+        if self.email_provider == "resend":
+            return bool(self.resend_api_key and self.resend_from)
         return bool(self.sender_email and self.sender_password)
+
+    def _send_email_smtp(self, to_email: str, subject: str, text_body: str, html_body: str):
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"{self.sender_name} <{self.sender_email}>"
+        message["To"] = to_email
+        message.attach(MIMEText(text_body, "plain"))
+        message.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+            server.starttls()
+            server.login(self.sender_email, self.sender_password)
+            server.send_message(message)
+
+    def _send_email_resend(self, to_email: str, subject: str, text_body: str, html_body: str):
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {self.resend_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": self.resend_from,
+                "to": [to_email],
+                "subject": subject,
+                "text": text_body,
+                "html": html_body,
+            },
+            timeout=20,
+        )
+
+        if response.status_code >= 300:
+            raise RuntimeError(f"Resend API error ({response.status_code}): {response.text}")
 
     def _send_email(self, to_email: str, subject: str, text_body: str, html_body: str):
         if not self.is_configured():
             return False, "Email service not configured"
 
         try:
-            message = MIMEMultipart("alternative")
-            message["Subject"] = subject
-            message["From"] = f"{self.sender_name} <{self.sender_email}>"
-            message["To"] = to_email
-            message.attach(MIMEText(text_body, "plain"))
-            message.attach(MIMEText(html_body, "html"))
-
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.sender_password)
-                server.send_message(message)
+            if self.email_provider == "resend":
+                self._send_email_resend(to_email, subject, text_body, html_body)
+            else:
+                self._send_email_smtp(to_email, subject, text_body, html_body)
 
             return True, "Email sent successfully"
         except smtplib.SMTPAuthenticationError:
