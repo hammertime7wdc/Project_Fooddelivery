@@ -5,7 +5,7 @@ from utils import ACCENT_DARK, DARK_GREEN, ORANGE
 
 
 def splash_screen(page: ft.Page, current_user: dict, cart: list, goto_login, duration_seconds: float = 2.5):
-    logo_base64 = get_base64_image("assets/burger.PNG")
+    logo_base64 = get_base64_image("assets/burger.png")
 
     splash = ft.Container(
         content=ft.Column(

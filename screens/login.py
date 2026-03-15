@@ -12,7 +12,7 @@ from screens.login_loading import show_login_loading, hide_login_loading
 from screens.login_side_help import create_login_side_help_widget
 
 def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, goto_verify=None, oauth_handler=None, logout_message=None, session_timed_out=None, cause=None):
-    logo_base64 = get_base64_image("assets/burger.PNG")
+    logo_base64 = get_base64_image("assets/burger.png")
 
     # Determine what message to show
     message_to_show = None
