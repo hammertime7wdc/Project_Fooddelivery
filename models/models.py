@@ -311,7 +311,7 @@ def init_database():
     session = Session()
     try:
         if session.query(User).count() == 0:
-            from ..core.auth import hash_password
+            from core.auth import hash_password
 
             admin = User(
                 email=os.getenv("ADMIN_EMAIL"),
