@@ -8,6 +8,7 @@ from utils import show_snackbar, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMA
 
 def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_login):
     state = {"code_sent": False, "resend_cooldown": False}
+    logo_base64 = get_base64_image("assets/login.png")
 
     email_field = ft.TextField(
         label="Enter your email",
@@ -366,11 +367,11 @@ def reset_password_screen(page: ft.Page, current_user: dict, cart: list, goto_lo
             [
                 ft.Container(height=24),
                 ft.Image(
-                    src_base64=get_base64_image("assets/login.png"),
+                    src_base64=logo_base64,
                     width=95,
                     height=95,
                     fit=ft.ImageFit.CONTAIN
-                ),
+                ) if logo_base64 else ft.Icon(ft.Icons.FASTFOOD, size=95, color=CREAM),
                 ft.Container(height=10),
                 ft.Text("RESET PASSWORD", size=30, weight=ft.FontWeight.BOLD, color=CREAM),
                 ft.Text("Secure your account with OTP verification", size=13, color=CREAM),

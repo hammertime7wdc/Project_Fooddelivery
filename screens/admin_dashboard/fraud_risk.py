@@ -63,7 +63,7 @@ def _set_sparkline(card: ft.Container, values):
     ]
 
 
-def create_fraud_risk_tab(page: ft.Page, current_user: dict):
+def create_fraud_risk_tab(page: ft.Page, current_user: dict, on_user_change=None):
     threshold_options = {
         "Low (30+)": 30,
         "Medium (50+)": 50,
@@ -175,11 +175,15 @@ def create_fraud_risk_tab(page: ft.Page, current_user: dict):
         disable_user(user_id, current_user["user"]["id"])
         show_snackbar(page, f"User #{user_id} blocked.")
         refresh_data()
+        if on_user_change:
+            on_user_change()
 
     def _unblock_user(user_id):
         enable_user(user_id, current_user["user"]["id"])
         show_snackbar(page, f"User #{user_id} unblocked.")
         refresh_data()
+        if on_user_change:
+            on_user_change()
 
     def render():
         risk_payload = _compute_risk_data()
@@ -382,7 +386,7 @@ def create_fraud_risk_tab(page: ft.Page, current_user: dict):
 
     refresh_data()
 
-    return ft.Container(
+    _fraud_content = ft.Container(
         content=ft.Column(
             [
                 ft.Container(
@@ -568,3 +572,4 @@ def create_fraud_risk_tab(page: ft.Page, current_user: dict):
         bgcolor="#FFFFFF",
         expand=True,
     )
+    return _fraud_content, refresh_data

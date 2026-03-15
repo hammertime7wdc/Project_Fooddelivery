@@ -1,0 +1,122 @@
+order_id,date,customer,status,amount
+160,2026-03-14 00:21,Lumberjack,delivered,697.50
+159,2026-03-13 22:54,Lumberjack,delivered,8958.50
+158,2026-03-13 20:17,Eugin N. Sabio,cancelled,39.20
+157,2026-03-13 20:06,Jumbo,delivered,142.50
+156,2026-03-13 19:34,jade Supersaiyan,cancelled,294.00
+155,2026-03-13 19:31,jade Supersaiyan,cancelled,142.50
+154,2026-03-13 19:26,jade Supersaiyan,cancelled,285.00
+153,2026-03-13 13:02,jade Supersaiyan,cancelled,441.00
+152,2026-03-13 13:00,jade Supersaiyan,cancelled,742.50
+151,2026-03-13 12:31,jade Supersaiyan,delivered,378.00
+150,2026-03-13 12:10,jade Supersaiyan,cancelled,315.00
+149,2026-03-07 19:06,jade Supersaiyan,delivered,140.00
+148,2026-03-07 19:04,jade Supersaiyan,cancelled,175.00
+147,2026-03-07 19:04,jade Supersaiyan,delivered,750.00
+146,2026-03-07 19:04,jade Supersaiyan,delivered,750.00
+145,2026-03-05 13:43,jade Supersaiyan,cancelled,900.00
+144,2026-02-27 11:03,jade Supersaiyan,cancelled,35.00
+143,2026-02-27 11:03,jade Supersaiyan,delivered,300.00
+142,2026-02-22 10:44,jade Supersaiyan,cancelled,589.00
+141,2026-02-22 10:44,jade Supersaiyan,delivered,750.00
+140,2026-02-22 10:08,jade Supersaiyan,cancelled,750.00
+139,2026-02-22 10:07,jade Supersaiyan,delivered,925.00
+138,2026-02-22 10:07,jade Supersaiyan,delivered,925.00
+137,2026-02-21 10:24,jade Supersaiyan,cancelled,35.00
+136,2026-02-21 10:21,jade Supersaiyan,cancelled,150.00
+135,2026-02-21 10:14,jade Supersaiyan,cancelled,150.00
+134,2026-02-21 10:09,jade Supersaiyan,cancelled,150.00
+133,2026-02-21 10:04,jade Supersaiyan,cancelled,150.00
+132,2026-02-21 10:01,jade Supersaiyan,cancelled,150.00
+131,2026-02-21 09:55,jade Supersaiyan,cancelled,150.00
+130,2026-02-21 09:53,jade Supersaiyan,cancelled,35.00
+129,2026-02-21 09:45,jade Supersaiyan,cancelled,70.00
+128,2026-02-21 09:42,jade Supersaiyan,cancelled,750.00
+127,2026-02-21 09:36,jade Supersaiyan,cancelled,150.00
+126,2026-02-21 09:25,jade Supersaiyan,cancelled,35.00
+125,2026-02-21 09:20,jade Supersaiyan,cancelled,150.00
+124,2026-02-21 09:19,jade Supersaiyan,cancelled,300.00
+123,2026-02-21 09:15,jade Supersaiyan,cancelled,35.00
+122,2026-02-21 09:11,jade Supersaiyan,cancelled,150.00
+121,2026-02-21 09:06,jade Supersaiyan,cancelled,175.00
+120,2026-02-21 09:03,jade Supersaiyan,cancelled,450.00
+119,2026-02-21 09:00,jade Supersaiyan,cancelled,175.00
+118,2026-02-21 08:56,jade Supersaiyan,cancelled,300.00
+117,2026-02-21 08:51,jade Supersaiyan,cancelled,300.00
+116,2026-02-21 08:51,jade Supersaiyan,cancelled,300.00
+115,2026-02-20 22:47,jade Supersaiyan,cancelled,311.00
+114,2026-02-18 22:06,Jacob Angel M. Sabio,delivered,150.00
+113,2026-02-18 21:59,John Supersaiyan,delivered,150.00
+112,2026-02-18 21:59,John Supersaiyan,delivered,150.00
+111,2026-02-18 21:59,John Supersaiyan,cancelled,150.00
+110,2026-02-18 21:59,John Supersaiyan,delivered,150.00
+109,2026-02-18 21:59,John Supersaiyan,delivered,150.00
+108,2026-02-18 21:46,John Jaee,delivered,150.00
+107,2026-02-18 21:46,John Jaee,delivered,150.00
+106,2026-02-18 21:46,John Jaee,delivered,150.00
+105,2026-02-18 21:46,John Jaee,delivered,150.00
+104,2026-02-18 21:46,John Jaee,delivered,300.00
+103,2026-02-18 21:43,John Supersaiyan,delivered,150.00
+102,2026-02-18 21:39,Jacob Angel M. Sabio,delivered,1200.00
+101,2026-02-18 21:25,John Supersaiyan,cancelled,150.00
+100,2026-02-18 21:25,John Supersaiyan,delivered,150.00
+99,2026-02-18 21:25,John Supersaiyan,cancelled,150.00
+98,2026-02-18 21:25,John Supersaiyan,delivered,150.00
+97,2026-02-18 21:25,John Supersaiyan,delivered,750.00
+96,2026-02-18 21:24,John Supersaiyan,delivered,1500.00
+95,2026-02-18 21:24,John Supersaiyan,delivered,3300.00
+94,2026-02-18 21:08,Jacob Angel M. Sabio,delivered,750.00
+93,2026-02-18 21:08,Jacob Angel M. Sabio,delivered,750.00
+92,2026-02-18 21:08,Jacob Angel M. Sabio,cancelled,600.00
+91,2026-02-18 20:53,John Supersaiyan,delivered,450.00
+90,2026-02-18 20:53,John Supersaiyan,delivered,3000.00
+89,2026-02-18 19:46,John Supersaiyan,delivered,1500.00
+88,2026-02-18 19:46,John Supersaiyan,delivered,10.00
+87,2026-02-18 19:12,John Supersaiyan,delivered,380.00
+86,2026-02-18 19:12,John Supersaiyan,delivered,475.00
+85,2026-02-18 19:05,Jacob Angel M. Sabio,delivered,1350.00
+84,2026-02-18 19:05,Jacob Angel M. Sabio,delivered,1350.00
+83,2026-02-18 18:58,John Supersaiyan,delivered,315.00
+82,2026-02-18 18:53,John Supersaiyan,delivered,350.00
+81,2026-02-18 18:50,Jacob Angel M. Sabio,delivered,560.00
+80,2026-02-18 18:47,John Supersaiyan,delivered,525.00
+79,2026-02-18 18:05,John Joshua Borac,delivered,175.00
+78,2026-02-18 14:08,John Supersaiyan,cancelled,385.00
+77,2026-02-18 13:53,John Supersaiyan,cancelled,700.00
+76,2026-02-18 13:46,John Supersaiyan,cancelled,350.00
+75,2026-02-18 13:42,John Supersaiyan,cancelled,525.00
+74,2026-02-18 13:41,John Supersaiyan,cancelled,525.00
+73,2026-02-18 13:40,John Supersaiyan,cancelled,525.00
+72,2026-02-18 13:39,John Supersaiyan,cancelled,540.00
+71,2026-02-18 13:36,John Supersaiyan,cancelled,350.00
+70,2026-02-16 21:11,John Supersaiyan,delivered,175.00
+69,2026-02-16 21:08,John Supersaiyan,delivered,1565.00
+68,2026-02-16 20:52,John Supersaiyan,cancelled,350.00
+67,2026-02-16 20:42,John Supersaiyan,cancelled,175.00
+66,2026-02-16 20:37,John Supersaiyan,cancelled,245.00
+65,2026-02-16 20:01,John Supersaiyan,delivered,175.00
+64,2026-02-16 19:57,John Supersaiyan,delivered,70.00
+63,2026-02-16 19:56,John Supersaiyan,delivered,210.00
+62,2026-02-16 19:02,John Supersaiyan,delivered,1420.00
+61,2026-02-14 20:42,John Supersaiyan,cancelled,2190.00
+60,2026-02-14 20:40,John Supersaiyan,cancelled,1310.00
+59,2026-02-14 15:48,John Supersaiyan,delivered,2190.00
+58,2026-02-14 13:31,John Supersaiyan,delivered,1640.00
+57,2026-02-13 19:27,Jacob Angel M. Sabio,delivered,1640.00
+56,2026-02-13 19:06,John Supersaiyan,cancelled,760.00
+55,2026-02-13 18:42,John Supersaiyan,cancelled,1340.00
+54,2026-02-13 18:42,John Supersaiyan,cancelled,890.00
+53,2026-02-13 18:35,John Supersaiyan,delivered,890.00
+52,2026-02-13 18:01,John Supersaiyan,cancelled,1040.00
+51,2026-02-13 17:51,John Supersaiyan,delivered,1490.00
+50,2026-02-13 17:50,John Supersaiyan,cancelled,890.00
+49,2026-02-13 10:40,John Supersaiyan,cancelled,60.00
+48,2026-02-13 10:38,John Supersaiyan,cancelled,340.00
+47,2026-02-13 10:34,John Supersaiyan,cancelled,650.00
+46,2026-02-13 10:31,John Supersaiyan,cancelled,360.00
+45,2026-02-13 10:30,John Supersaiyan,delivered,380.00
+,,,,
+SUMMARY,,,,
+period,30D,,,
+orders_count,116,,,
+non_cancelled_revenue,47351.50,,,

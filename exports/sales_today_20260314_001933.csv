@@ -1,0 +1,6 @@
+order_id,date,customer,status,amount
+,,,,
+SUMMARY,,,,
+period,Today,,,
+orders_count,0,,,
+non_cancelled_revenue,0.00,,,

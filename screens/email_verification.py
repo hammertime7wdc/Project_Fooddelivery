@@ -9,6 +9,7 @@ from utils import show_snackbar, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMA
 
 def email_verification_screen(page: ft.Page, current_user: dict, cart: list, email: str, goto_login):
     resend_cooldown = {"active": False}
+    logo_base64 = get_base64_image("assets/login.png")
 
     masked_email = email
     if "@" in email:
@@ -154,11 +155,11 @@ def email_verification_screen(page: ft.Page, current_user: dict, cart: list, ema
             [
                 ft.Container(height=24),
                 ft.Image(
-                    src_base64=get_base64_image("assets/login.png"),
+                    src_base64=logo_base64,
                     width=95,
                     height=95,
                     fit=ft.ImageFit.CONTAIN
-                ),
+                ) if logo_base64 else ft.Icon(ft.Icons.FASTFOOD, size=95, color=CREAM),
                 ft.Container(height=10),
                 ft.Text("VERIFY YOUR EMAIL", size=30, weight=ft.FontWeight.BOLD, color=CREAM),
                 ft.Text("One last step to secure your account", size=13, color=CREAM),

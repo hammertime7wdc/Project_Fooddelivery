@@ -29,6 +29,7 @@ def create_admin_handlers(
     user_details_content,
     order_details_panel,
     order_details_content,
+    on_user_status_change=None,
 ):
     user_handlers = create_user_handlers(
         page=page,
@@ -51,6 +52,7 @@ def create_admin_handlers(
         form_container=form_container,
         user_details_panel=user_details_panel,
         user_details_content=user_details_content,
+        on_user_status_change=on_user_status_change,
     )
 
     order_handlers = create_order_handlers(

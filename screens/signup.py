@@ -5,10 +5,13 @@ import time
 import json
 import webbrowser
 from core.auth import register_user, validate_password, validate_email, validate_full_name, get_password_strength
+from core.database import log_action
 from core.image_utils import get_base64_image
 from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, goto_verify=None, oauth_handler=None):
+    logo_base64 = get_base64_image("assets/login.png")
+
     # Load welcome messages from JSON
     try:
         with open("assets/welcome_messages.json", "r") as f:
@@ -450,8 +453,11 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
                 # Get user info and register
                 email = user_info.get('email', '').strip()
                 name = user_info.get('name', 'Google User').strip()
+
+                log_action(None, "GOOGLE_OAUTH_SIGNUP_ATTEMPT", f"Google signup attempt: {email}")
                 
                 if not email:
+                    log_action(None, "GOOGLE_OAUTH_SIGNUP_FAILED", "Google signup failed: missing email from provider")
                     show_snackbar(page, "Could not retrieve email from Google account.", error=True)
                     return
                 
@@ -459,11 +465,25 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
                 try:
                     success, msg = register_user(email, "", name, "customer", require_verification=False)
                     if success:
+                        # register_user already logs USER_REGISTERED; add explicit OAuth event too
+                        from models.models import Session, User
+                        from sqlalchemy import func
+                        session = Session()
+                        try:
+                            created_user = session.query(User).filter(func.lower(func.trim(User.email)) == email.lower()).first()
+                            if created_user:
+                                log_action(created_user.id, "GOOGLE_OAUTH_SIGNUP_SUCCESS", f"Google signup success: {email}")
+                            else:
+                                log_action(None, "GOOGLE_OAUTH_SIGNUP_SUCCESS", f"Google signup success: {email}")
+                        finally:
+                            session.close()
                         show_snackbar(page, "Account created successfully!")
                         threading.Timer(1.0, lambda: goto_login(e)).start()
                     else:
+                        log_action(None, "GOOGLE_OAUTH_SIGNUP_FAILED", f"Google signup failed for {email}: {msg}")
                         show_snackbar(page, f"Registration failed: {msg}")
                 except Exception as reg_ex:
+                    log_action(None, "GOOGLE_OAUTH_SIGNUP_FAILED", f"Google signup exception for {email}: {str(reg_ex)}")
                     show_snackbar(page, f"Error creating account: {str(reg_ex)}", error=True)
                         
             except FileNotFoundError:
@@ -493,11 +513,11 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
                 ft.Column(
                     [
                         ft.Image(
-                            src_base64=get_base64_image("assets/login.png"),
+                            src_base64=logo_base64,
                             width=92,
                             height=92,
                             fit=ft.ImageFit.CONTAIN
-                        ),
+                        ) if logo_base64 else ft.Icon(ft.Icons.FASTFOOD, size=92, color=CREAM),
                         ft.Container(height=8),
                         ft.Text(
                             "CREATE ACCOUNT",

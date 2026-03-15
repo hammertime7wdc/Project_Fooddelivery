@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from models.models import Session, User, PendingSignup
 from .database import log_action
 from .email_sender import get_email_sender
+from .auth_login import authenticate_user_impl
 import hashlib
 import secrets
 import math
@@ -159,58 +160,13 @@ def get_password_strength(password: str):
 
 # ========== USER AUTHENTICATION WITH LOCKOUT ==========
 def authenticate_user(email: str, password: str):
-    session = Session()
-    try:
-        user = session.query(User).filter_by(
-            email=email,
-            is_active=1
-        ).first()
-        
-        if not user:
-            log_action(None, "LOGIN_FAILED", f"User not found: {email}")
-            return None
-
-        # ──────────────────────── LOCK CHECK & AUTO-UNLOCK ────────────────────────
-        if user.locked_until:
-            if datetime.now() >= user.locked_until:
-                # TIME IS UP → automatically unlock and reset counter
-                user.locked_until = None
-                user.failed_login_attempts = 0
-                session.commit()
-            else:
-                # Still locked
-                return {"locked": True, "locked_until": user.locked_until.isoformat()}
-
-        # ──────────────────────── PASSWORD CHECK ────────────────────────
-        if not verify_password(password, user.password):
-            new_attempts = user.failed_login_attempts + 1
-            
-            if new_attempts >= MAX_LOGIN_ATTEMPTS:
-                locked_until_dt = datetime.now() + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
-                user.failed_login_attempts = new_attempts
-                user.locked_until = locked_until_dt
-                session.commit()
-                log_action(user.id, "ACCOUNT_LOCKED", f"Locked after {new_attempts} fails")
-                return {"locked": True, "locked_until": locked_until_dt.isoformat()}
-            else:
-                user.failed_login_attempts = new_attempts
-                session.commit()
-                log_action(user.id, "LOGIN_FAILED", f"Wrong password (attempt {new_attempts})")
-            return None
-
-        if getattr(user, "email_verified", 1) == 0:
-            return {"unverified": True, "email": user.email}
-
-        # ──────────────────────── SUCCESSFUL LOGIN ────────────────────────
-        user.failed_login_attempts = 0
-        user.locked_until = None
-        user.last_login = datetime.now()
-        session.commit()
-        
-        log_action(user.id, "LOGIN_SUCCESS", f"Successful login: {email}")
-        return user.to_dict()
-    finally:
-        session.close()
+    return authenticate_user_impl(
+        email=email,
+        password=password,
+        verify_password_func=verify_password,
+        max_login_attempts=MAX_LOGIN_ATTEMPTS,
+        lockout_duration_minutes=LOCKOUT_DURATION_MINUTES,
+    )
 
 
 def register_user(email: str, password: str, full_name: str, role: str = "customer", require_verification: bool = True):
@@ -365,6 +321,8 @@ def disable_user(user_id: int, admin_id: int):
         user = session.query(User).filter_by(id=user_id).first()
         if user:
             user.is_active = 0
+            user.failed_login_attempts = 0
+            user.locked_until = None
             session.commit()
             log_action(admin_id, "USER_DISABLED", f"Admin disabled user ID: {user_id}")
     finally:

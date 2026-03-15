@@ -1,0 +1,16 @@
+order_id,date,customer,status,amount
+159,2026-03-13 22:54,Lumberjack,delivered,8958.50
+158,2026-03-13 20:17,Eugin N. Sabio,cancelled,39.20
+157,2026-03-13 20:06,Jumbo,delivered,142.50
+156,2026-03-13 19:34,jade Supersaiyan,cancelled,294.00
+155,2026-03-13 19:31,jade Supersaiyan,cancelled,142.50
+154,2026-03-13 19:26,jade Supersaiyan,cancelled,285.00
+153,2026-03-13 13:02,jade Supersaiyan,cancelled,441.00
+152,2026-03-13 13:00,jade Supersaiyan,cancelled,742.50
+151,2026-03-13 12:31,jade Supersaiyan,delivered,378.00
+150,2026-03-13 12:10,jade Supersaiyan,cancelled,315.00
+,,,,
+SUMMARY,,,,
+period,7D,,,
+orders_count,10,,,
+non_cancelled_revenue,9479.00,,,

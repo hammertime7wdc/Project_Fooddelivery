@@ -69,6 +69,7 @@ class GoogleOAuthHandler:
             'response_type': 'code',
             'scope': 'openid email profile',
             'access_type': 'offline',
+            'prompt': 'select_account',
             'state': state
         }
         return f"{self.auth_uri}?{urllib.parse.urlencode(params)}", state
@@ -135,7 +136,11 @@ class GoogleOAuthHandler:
                     <p>You can close this window now and return to the app.</p>
                     <script>setTimeout(function() { window.close(); }, 2000);</script>
                     </body></html>"""
-                    self.wfile.write(html.encode('utf-8'))
+                    try:
+                        self.wfile.write(html.encode('utf-8'))
+                    except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+                        # Browser/client closed callback tab quickly; code is already captured.
+                        pass
                 else:
                     self.send_response(400)
                     self.send_header('Content-type', 'text/html; charset=utf-8')
@@ -144,7 +149,10 @@ class GoogleOAuthHandler:
                     <h1 style='color: red;'>[FAILED] Authorization Failed</h1>
                     <p>Please try again.</p>
                     </body></html>"""
-                    self.wfile.write(html.encode('utf-8'))
+                    try:
+                        self.wfile.write(html.encode('utf-8'))
+                    except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+                        pass
             
             def log_message(self, format, *args):
                 pass  # Suppress log messages

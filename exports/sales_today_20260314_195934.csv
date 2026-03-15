@@ -1,0 +1,15 @@
+order_id,date,customer,status,amount
+168,2026-03-14 19:54,Lumberjack,cancelled,232.50
+167,2026-03-14 14:25,Lumberjack,delivered,2000.00
+166,2026-03-14 14:18,Lumberjack,delivered,900000.00
+165,2026-03-14 14:18,Lumberjack,delivered,900000.00
+164,2026-03-14 14:17,Lumberjack,cancelled,1350000.00
+163,2026-03-14 14:17,Lumberjack,cancelled,1350000.00
+162,2026-03-14 14:17,Lumberjack,cancelled,2000.00
+161,2026-03-14 14:01,Lumberjack,cancelled,1800024.50
+160,2026-03-14 00:21,Lumberjack,delivered,697.50
+,,,,
+SUMMARY,,,,
+period,Today,,,
+orders_count,9,,,
+non_cancelled_revenue,1802697.50,,,

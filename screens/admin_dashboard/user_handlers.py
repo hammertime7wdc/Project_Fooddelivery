@@ -43,6 +43,7 @@ def create_user_handlers(
     form_container,
     user_details_panel,
     user_details_content,
+    on_user_status_change=None,
 ):
     search_query = {"value": ""}
 
@@ -171,6 +172,8 @@ def create_user_handlers(
         show_snackbar(page, "User enabled successfully!")
         user_details_panel.visible = False
         load_users()
+        if on_user_status_change:
+            on_user_status_change()
         page.update()
 
     def handle_disable_user(user_id):
@@ -178,6 +181,8 @@ def create_user_handlers(
         show_snackbar(page, "User disabled successfully!")
         user_details_panel.visible = False
         load_users()
+        if on_user_status_change:
+            on_user_status_change()
         page.update()
 
     def handle_delete_user(user_id):

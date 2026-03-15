@@ -196,6 +196,25 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         content_padding=12
     )
 
+    name_error = ft.Text("", size=11, color="red", visible=False)
+    address_error = ft.Text("", size=11, color="red", visible=False)
+    contact_error = ft.Text("", size=11, color="red", visible=False)
+
+    def _clear_field_error(field, error_text):
+        field.border_color = FIELD_BORDER
+        error_text.visible = False
+        error_text.value = ""
+        page.update()
+
+    def _show_field_error(field, error_text, msg):
+        field.border_color = "red"
+        error_text.value = msg
+        error_text.visible = True
+
+    name_field.on_change = lambda e: _clear_field_error(name_field, name_error)
+    address_field.on_change = lambda e: _clear_field_error(address_field, address_error)
+    contact_field.on_change = lambda e: _clear_field_error(contact_field, contact_error)
+
     # Order summary box - matching reference design with dynamic values
     summary_box = ft.Container(
         content=ft.Column([
@@ -221,8 +240,19 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
         if not cart:
             show_snackbar(page, "Cart is empty!")
             return
-        if not name_field.value or not address_field.value or not contact_field.value:
-            show_snackbar(page, "Please fill delivery details")
+
+        has_error = False
+        if not name_field.value or not name_field.value.strip():
+            _show_field_error(name_field, name_error, "Full name is required.")
+            has_error = True
+        if not address_field.value or not address_field.value.strip():
+            _show_field_error(address_field, address_error, "Delivery address is required.")
+            has_error = True
+        if not contact_field.value or not contact_field.value.strip():
+            _show_field_error(contact_field, contact_error, "Contact number is required.")
+            has_error = True
+        if has_error:
+            page.update()
             return
 
         checkout_btn.disabled = True
@@ -235,7 +265,7 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
             normalized_contact = normalize_ph_to_e164(contact_field.value)
             if not normalized_contact:
                 hide_login_loading(page, loading_overlay)
-                show_snackbar(page, "Enter a valid PH mobile number (e.g. 9XXXXXXXXX)")
+                _show_field_error(contact_field, contact_error, "Enter a valid PH mobile number (e.g. 9XXXXXXXXX).")
                 checkout_btn.disabled = False
                 page.update()
                 return
@@ -329,10 +359,13 @@ def cart_screen(page: ft.Page, current_user: dict, cart: list, goto_menu, goto_c
             ft.Container(
                 content=ft.Column([
                     name_field,
-                    ft.Container(height=8),
+                    name_error,
+                    ft.Container(height=6),
                     address_field,
-                    ft.Container(height=8),
+                    address_error,
+                    ft.Container(height=6),
                     contact_field,
+                    contact_error,
                 ], spacing=0),
                 bgcolor=FIELD_BG,
                 border_radius=12,

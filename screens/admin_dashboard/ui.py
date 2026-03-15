@@ -14,8 +14,6 @@ from .fraud_risk import create_fraud_risk_tab
 
 
 def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_profile, goto_logout):
-    fraud_risk_tab_content = create_fraud_risk_tab(page, current_user)
-
     users_list = ft.GridView(
         expand=True,
         max_extent=360,
@@ -328,6 +326,8 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         border_radius=12,
     )
 
+    _fraud_refresh = {"fn": None}
+
     handlers = create_admin_handlers(
         page=page,
         current_user=current_user,
@@ -372,7 +372,13 @@ def admin_dashboard_screen(page: ft.Page, current_user: dict, cart: list, goto_p
         },
         order_search_field=order_search_field,
         date_range_dropdown=date_range_dropdown,
+        on_user_status_change=lambda: _fraud_refresh["fn"] and _fraud_refresh["fn"](),
     )
+
+    fraud_risk_tab_content, _fraud_refresh_fn = create_fraud_risk_tab(
+        page, current_user, on_user_change=handlers["load_users"]
+    )
+    _fraud_refresh["fn"] = _fraud_refresh_fn
 
     new_email.on_change = handlers["validate_email_field"]
     new_password.on_change = handlers["update_password_strength"]

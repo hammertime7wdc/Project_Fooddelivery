@@ -5,11 +5,15 @@ import time
 import json
 import webbrowser
 from core.auth import authenticate_user, validate_email, register_user
+from core.database import log_action
 from core.image_utils import get_base64_image
 from utils import show_snackbar, ACCENT_PRIMARY, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 from screens.login_loading import show_login_loading, hide_login_loading
+from screens.login_side_help import create_login_side_help_widget
 
 def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, goto_reset, goto_dashboard, goto_verify=None, oauth_handler=None, logout_message=None, session_timed_out=None, cause=None):
+    logo_base64 = get_base64_image("assets/burger.PNG")
+
     # Determine what message to show
     message_to_show = None
     if logout_message:
@@ -169,6 +173,35 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         visible=False
     )
 
+    login_status_text = ft.Text("", size=12, visible=False, text_align=ft.TextAlign.CENTER, width=300)
+    google_status_text = ft.Text("", size=12, visible=False, text_align=ft.TextAlign.CENTER, width=300)
+    oauth_state = {"in_progress": False}
+    support_widget_container_ref = {"control": None}
+
+    def set_support_widget_visible(visible: bool):
+        container = support_widget_container_ref.get("control")
+        if container is None:
+            return
+        if container.visible != visible:
+            container.visible = visible
+            page.update()
+
+    def set_login_status(message: str = "", error: bool = False):
+        login_status_text.value = message
+        login_status_text.color = "#8B0000" if error else DARK_GREEN
+        login_status_text.visible = bool(message)
+
+    def set_google_status(message: str = "", error: bool = False):
+        google_status_text.value = message
+        google_status_text.color = "#8B0000" if error else DARK_GREEN
+        google_status_text.visible = bool(message)
+
+    def clear_auth_statuses():
+        set_login_status()
+        set_google_status()
+        set_support_widget_visible(False)
+        page.update()
+
     def countdown_timer(locked_until):
         while datetime.now() < locked_until:
             delta = locked_until - datetime.now()
@@ -190,6 +223,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         password_field.border_color = FIELD_BORDER
         password_field.error_text = None
         password_field.border_width = 1
+        clear_auth_statuses()
         page.update()
 
     def set_field_error(field, error_message):
@@ -199,20 +233,59 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
         field.border_width = 2
         page.update()
 
+    def clear_field_error(field):
+        field.border_color = FIELD_BORDER
+        field.error_text = None
+        field.border_width = 1
+        page.update()
+
+    def on_email_change(e):
+        # Only re-validate while typing if an email error is currently shown
+        if not email_field.error_text:
+            return
+
+        value = (email_field.value or "").strip()
+        if not value:
+            set_field_error(email_field, "Email is required")
+            return
+
+        valid, msg = validate_email(value)
+        if valid:
+            clear_field_error(email_field)
+        else:
+            set_field_error(email_field, msg)
+
+    def on_password_change(e):
+        # Clear password error as soon as user types a non-empty value
+        if password_field.error_text and (password_field.value or "").strip():
+            clear_field_error(password_field)
+
+    email_field.on_change = on_email_change
+    password_field.on_change = on_password_change
+
     def login_click(e):
         # Reset all errors first
         reset_field_errors()
         
-        # Validate email format first
-        valid, msg = validate_email(email_field.value)
-        if not valid:
-            set_field_error(email_field, msg)
-            show_snackbar(page, msg)
-            return
-        
+        # Validate inputs and show field-specific errors together
+        has_validation_error = False
+
+        email_value = (email_field.value or "").strip()
+        if not email_value:
+            set_field_error(email_field, "Email is required")
+            has_validation_error = True
+        else:
+            valid, msg = validate_email(email_value)
+            if not valid:
+                set_field_error(email_field, msg)
+                has_validation_error = True
+
         if not password_field.value:
             set_field_error(password_field, "Please enter your password")
-            show_snackbar(page, "Please enter your password")
+            has_validation_error = True
+
+        if has_validation_error:
+            show_snackbar(page, "Please fix the highlighted fields")
             return
 
         # Show loading screen only after validation passes
@@ -224,7 +297,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
             if user is None:
                 # Only highlight password field for security (don't reveal if email exists)
                 hide_login_loading(page, loading)
-                set_field_error(password_field, "Invalid credentials")
+                set_field_error(password_field, "Invalid email or password")
                 show_snackbar(page, "Invalid email or password")
                 return
 
@@ -234,19 +307,30 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                     locked_until = datetime.fromisoformat(user["locked_until"])
                     lockout_container.visible = True
                     threading.Thread(target=countdown_timer, args=(locked_until,), daemon=True).start()
+                set_login_status("Account locked due to too many failed attempts", error=True)
+                set_support_widget_visible(True)
                 show_snackbar(page, f"Account locked due to too many failed attempts")
                 return
 
             if isinstance(user, dict) and user.get("unverified"):
                 hide_login_loading(page, loading)
+                set_login_status("Please verify your email before logging in", error=True)
                 show_snackbar(page, "Please verify your email before logging in")
                 if goto_verify:
                     goto_verify(user.get("email") or email_field.value)
                 return
 
+            if isinstance(user, dict) and user.get("disabled"):
+                hide_login_loading(page, loading)
+                set_login_status("Your account has been disabled. Please contact admin or owner.", error=True)
+                set_support_widget_visible(True)
+                show_snackbar(page, "Your account has been disabled. Please contact admin or owner.", error=True)
+                return
+
             current_user["user"] = user
             cart.clear()  # Clear cart on login
             hide_login_loading(page, loading)
+            clear_auth_statuses()
             show_snackbar(page, f"Welcome back, {user['full_name']}!")
             goto_dashboard(user["role"])
         except Exception as ex:
@@ -255,6 +339,18 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
 
     def google_login_click(e):
         """Handle Google OAuth login by redirecting to Google"""
+        if oauth_state["in_progress"]:
+            show_snackbar(page, "Google sign-in is already in progress. Please finish the current login.", error=True)
+            return
+
+        oauth_state["in_progress"] = True
+        google_btn = e.control
+        google_btn.disabled = True
+        google_btn.text = "Google (Signing in...)"
+        page.update()
+
+        set_google_status()
+
         def perform_google_login():
             try:
                 # Start callback server
@@ -307,24 +403,40 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                     return
                 
                 # Get user info
-                email = user_info.get('email')
+                email = (user_info.get('email') or '').strip().lower()
                 name = user_info.get('name', 'Google User')
+
+                log_action(None, "GOOGLE_OAUTH_LOGIN_ATTEMPT", f"Google login attempt: {email}")
                 
                 # Check if user exists
                 from models.models import Session, User
+                from sqlalchemy import func
                 session = Session()
                 try:
-                    user = session.query(User).filter_by(email=email).first()
+                    user = session.query(User).filter(func.lower(func.trim(User.email)) == email).first()
+
+                    if user and not bool(getattr(user, "is_active", 1)):
+                        log_action(user.id, "GOOGLE_OAUTH_LOGIN_BLOCKED_DISABLED", f"Disabled Google login blocked: {email}")
+                        set_google_status("Your account has been disabled. Please contact support/admin.", error=True)
+                        set_support_widget_visible(True)
+                        show_snackbar(page, "Your account has been disabled. Please contact support/admin.", error=True)
+                        return
+
+                    if user and getattr(user, "email_verified", 1) == 0:
+                        user.email_verified = 1
+                        session.commit()
                     
                     if not user:
                         # Auto-register
                         success, msg = register_user(email, "", name, "customer", require_verification=False)
                         if not success:
+                            log_action(None, "GOOGLE_OAUTH_LOGIN_FAILED", f"Auto-register failed for {email}: {msg}")
                             show_snackbar(page, f"Registration failed: {msg}")
                             return
-                        user = session.query(User).filter_by(email=email).first()
+                        user = session.query(User).filter(func.lower(func.trim(User.email)) == email).first()
                     
                     if user:
+                        clear_auth_statuses()
                         current_user["user"] = {
                             "id": user.id,
                             "full_name": user.full_name,
@@ -332,6 +444,7 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                             "role": user.role if hasattr(user, 'role') else "customer"
                         }
                         cart.clear()
+                        log_action(user.id, "GOOGLE_OAUTH_LOGIN_SUCCESS", f"Google login success: {email}")
                         show_snackbar(page, f"Welcome, {name}!")
                         goto_dashboard(current_user["user"]["role"])
                 finally:
@@ -344,8 +457,26 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                 show_snackbar(page, f"Error: {str(ex)}", error=True)
                 import traceback
                 traceback.print_exc()
+            finally:
+                oauth_state["in_progress"] = False
+                try:
+                    google_btn.disabled = False
+                    google_btn.text = "Google"
+                    page.update()
+                except Exception:
+                    pass
         
         threading.Thread(target=perform_google_login, daemon=True).start()
+
+    support_email = "joborac@my.cspc.edu.ph"
+    side_help_widget = create_login_side_help_widget(page, support_email=support_email)
+    support_widget_container = ft.Container(
+        content=side_help_widget,
+        width=300,
+        alignment=ft.alignment.center_right,
+        visible=False,
+    )
+    support_widget_container_ref["control"] = support_widget_container
 
     login_container = ft.Container(
         content=ft.Column(
@@ -355,11 +486,11 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                     content=ft.Column(
                         [
                             ft.Image(
-                                src_base64=get_base64_image("assets/burger.PNG"),
+                                src_base64=logo_base64,
                                 width=92,
                                 height=92,
                                 fit=ft.ImageFit.CONTAIN
-                            ),
+                            ) if logo_base64 else ft.Icon(ft.Icons.FASTFOOD, color=CREAM, size=76),
                             ft.Container(height=8),
                             ft.Text(
                                 "LK MARTIN FOOD SYSTEM",
@@ -394,6 +525,8 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                             password_container,
                             ft.Container(height=10),
                             lockout_container,
+                            ft.Container(height=8),
+                            login_status_text,
                             ft.Container(height=18),
                             ft.ElevatedButton(
                                 "Log in",
@@ -429,6 +562,8 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                                     side=ft.BorderSide(1, FIELD_BORDER)
                                 )
                             ),
+                            ft.Container(height=8),
+                            google_status_text,
                             ft.Container(height=14),
                             ft.TextButton(
                                 "Reset Password",
@@ -445,7 +580,9 @@ def login_screen(page: ft.Page, current_user: dict, cart: list, goto_signup, got
                                     spacing=0
                                 ),
                                 on_click=goto_signup
-                            )
+                            ),
+                            ft.Container(height=10),
+                            support_widget_container
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         spacing=0
