@@ -337,11 +337,11 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
                 
                 page.update()
             else:
-                show_snackbar(page, msg)
+                show_snackbar(page, f"Signup failed: {msg}", error=True)
         except Exception as ex:
             import traceback
             traceback.print_exc()
-            show_snackbar(page, f"Error creating account: {str(ex)}")
+            show_snackbar(page, f"Error creating account: {str(ex)}", error=True)
         finally:
             # Restore button state
             signup_button.disabled = False
