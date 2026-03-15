@@ -2,7 +2,7 @@
 import flet as ft
 import uuid
 import os
-import imghdr
+import mimetypes
 import time
 from core.phone_utils import normalize_ph_to_e164
 from core.auth import (
@@ -26,6 +26,16 @@ PROFILE_UPLOAD_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "uploads",
 )
+
+
+def _is_supported_image_file(file_path: str) -> bool:
+    mime_type, _ = mimetypes.guess_type(file_path)
+    allowed_mimes = {"image/jpeg", "image/png", "image/gif"}
+    if mime_type in allowed_mimes:
+        return True
+
+    extension = os.path.splitext(file_path)[1].lower()
+    return extension in {".jpg", ".jpeg", ".png", ".gif"}
 
 
 def _set_profile_preview(profile_pic_preview, image_data, image_type):
@@ -66,8 +76,7 @@ def _resolve_pending_upload_path(file_name, pending_uploads):
 
 
 def finalize_profile_upload(file_path, profile_pic_preview, uploaded_pic, page, upload_state):
-    detected_type = imghdr.what(file_path)
-    if detected_type not in ("jpeg", "png", "gif"):
+    if not _is_supported_image_file(file_path):
         upload_state["in_progress"] = False
         show_snackbar(page, "Invalid image file", error=True)
         return

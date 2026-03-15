@@ -1,6 +1,6 @@
 import flet as ft
 import os
-import imghdr
+import mimetypes
 import uuid
 from core.database import (
 	get_all_menu_items,
@@ -21,6 +21,16 @@ from utils import (
 
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
+
+
+def _is_supported_image_file(file_path: str) -> bool:
+	mime_type, _ = mimetypes.guess_type(file_path)
+	allowed_mimes = {"image/jpeg", "image/png", "image/gif"}
+	if mime_type in allowed_mimes:
+		return True
+
+	extension = os.path.splitext(file_path)[1].lower()
+	return extension in {".jpg", ".jpeg", ".png", ".gif"}
 
 
 def create_menu_handlers(page, current_user, menu_list, form_container, fields, uploaded_image, menu_filter_buttons, file_picker=None, search_field=None):
@@ -49,8 +59,7 @@ def create_menu_handlers(page, current_user, menu_list, form_container, fields, 
 		return None
 
 	def finalize_cloudinary_upload(file_path):
-		detected_type = imghdr.what(file_path)
-		if detected_type not in ("jpeg", "png", "gif"):
+		if not _is_supported_image_file(file_path):
 			upload_state["in_progress"] = False
 			show_snackbar(page, "Invalid image file")
 			return
