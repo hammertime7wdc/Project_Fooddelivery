@@ -10,8 +10,6 @@ from core.image_utils import get_base64_image
 from utils import show_snackbar, TEXT_LIGHT, FIELD_BG, TEXT_DARK, FIELD_BORDER, ACCENT_PRIMARY, ACCENT_DARK, CREAM, DARK_GREEN, ORANGE
 
 def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, goto_verify=None, oauth_handler=None):
-    logo_base64 = get_base64_image("assets/login.png")
-
     # Load welcome messages from JSON
     try:
         with open("assets/welcome_messages.json", "r") as f:
@@ -21,29 +19,13 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
         welcome_messages = ["Join us today!"]
     
     # Create welcome text component
-    welcome_text = ft.Text("Join us today!", size=14, color=DARK_GREEN, weight=ft.FontWeight.BOLD, opacity=1)
-    
-    # Rotating message function with fade effect
-    message_index = [0]
-    def rotate_message():
-        while True:
-            time.sleep(3.5)
-            # Fade out
-            for i in range(10):
-                welcome_text.opacity = 1 - (i / 10)
-                page.update()
-                time.sleep(0.05)
-            # Change message
-            message_index[0] = (message_index[0] + 1) % len(welcome_messages)
-            welcome_text.value = welcome_messages[message_index[0]]
-            # Fade in
-            for i in range(10):
-                welcome_text.opacity = i / 10
-                page.update()
-                time.sleep(0.05)
-    
-    # Start rotation thread
-    threading.Thread(target=rotate_message, daemon=True).start()
+    welcome_text = ft.Text(
+        welcome_messages[0] if welcome_messages else "Join us today!",
+        size=14,
+        color=DARK_GREEN,
+        weight=ft.FontWeight.BOLD,
+        opacity=1,
+    )
     
     name_field = ft.TextField(
         label="Full Name",
@@ -337,11 +319,11 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
                 
                 page.update()
             else:
-                show_snackbar(page, f"Signup failed: {msg}", error=True)
+                show_snackbar(page, msg)
         except Exception as ex:
             import traceback
             traceback.print_exc()
-            show_snackbar(page, f"Error creating account: {str(ex)}", error=True)
+            show_snackbar(page, f"Error creating account: {str(ex)}")
         finally:
             # Restore button state
             signup_button.disabled = False
@@ -513,11 +495,11 @@ def signup_screen(page: ft.Page, current_user: dict, cart: list, goto_login, got
                 ft.Column(
                     [
                         ft.Image(
-                            src_base64=logo_base64,
+                            src_base64=get_base64_image("assets/login.png"),
                             width=92,
                             height=92,
                             fit=ft.ImageFit.CONTAIN
-                        ) if logo_base64 else ft.Icon(ft.Icons.FASTFOOD, size=92, color=CREAM),
+                        ),
                         ft.Container(height=8),
                         ft.Text(
                             "CREATE ACCOUNT",

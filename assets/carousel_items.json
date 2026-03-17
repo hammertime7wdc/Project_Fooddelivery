@@ -2,20 +2,19 @@
   "items": [
     {
       "title": "🔥Occasion Sale",
-      "description": "SUPERBOWL SPECIAL: 50% off all burgers!",
+      "description": "Fresh baked chocolate chip cookies straight from the oven",
       "image": null,
       "bg_color": "#E9762B"
     },
     {
       "title": "⭐ New Arrival",
-      "description": "BURGA BURGA BURGA BURGA",
+      "description": "Classic Filipino chicken adobo served with steamed rice",
       "image": "burger.png",
       "bg_color": "#0D4715"
     },
     {
       "title": "🫡NICE",
-
-      "description": "Fresh grilled salmon with lemon butter sauce",
+      "description": "Authentic  pancit bihon with a savory blend of flavors",
       "image": null,
       "bg_color": "#8B4513"
     },

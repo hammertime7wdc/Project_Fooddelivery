@@ -272,7 +272,7 @@ def _build_revenue_chart(points, metric_key="revenue"):
     max_value = max(values, default=0.0)
     max_value = max(max_value, 1.0)
     active_count = sum(1 for value in values if value > 0)
-    sparse_mode = active_count <= max(1, len(points) // 3)
+    sparse_mode = True
 
     chart_controls = []
     for point in points:

@@ -5,18 +5,16 @@ from utils import ACCENT_DARK, DARK_GREEN, ORANGE
 
 
 def splash_screen(page: ft.Page, current_user: dict, cart: list, goto_login, duration_seconds: float = 2.5):
-    logo_base64 = get_base64_image("assets/burger.png")
-
     splash = ft.Container(
         content=ft.Column(
             [
                 ft.Container(height=40),
                 ft.Image(
-                    src_base64=logo_base64,
+                    src_base64=get_base64_image("assets/burger.PNG"),
                     width=140,
                     height=140,
                     fit=ft.ImageFit.CONTAIN,
-                ) if logo_base64 else ft.Icon(ft.Icons.FASTFOOD, size=120, color=ACCENT_DARK),
+                ),
                 ft.Container(height=20),
                 ft.Text(
                     "LK MARTIN FOOD SYSTEM",

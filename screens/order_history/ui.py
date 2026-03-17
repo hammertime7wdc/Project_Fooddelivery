@@ -10,7 +10,7 @@ def build_order_card(order, status_colors, page, cancel_handler):
     status = (order.get('status') or '').strip().lower()
     
     def can_cancel(s):
-        return s in {"placed", "preparing", "out for delivery"}
+        return s in {"placed", "preparing"}
     
     colors = status_colors.get(status, {"bg": "#F5F5F5", "text": "#666"})
     

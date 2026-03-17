@@ -249,4 +249,5 @@ def main(page: ft.Page):
     page.add(splash_screen(page, current_user, cart, goto_login))
 
 #ft.app(target=main, view=ft.FLET_APP) #for desktop app
-ft.app(target=main, view=ft.WEB_BROWSER, port=8080, upload_dir=UPLOAD_DIR) #for web app (opens in browser)
+APP_PORT = int(os.getenv("PORT", "8080"))
+ft.app(target=main, view=ft.WEB_BROWSER, port=APP_PORT, upload_dir=UPLOAD_DIR) #for web app (opens in browser)

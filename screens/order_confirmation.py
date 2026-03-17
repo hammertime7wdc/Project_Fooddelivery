@@ -3,8 +3,6 @@ from core.image_utils import get_base64_image
 from utils import TEXT_LIGHT, TEXT_DARK, ACCENT_DARK, ACCENT_PRIMARY, CREAM
 
 def order_confirmation_screen(page: ft.Page, current_user: dict, cart: list, goto_menu):
-    cart_image_base64 = get_base64_image("assets/cart.png")
-
     def continue_shop(e):
         goto_menu(e)
 
@@ -22,11 +20,11 @@ def order_confirmation_screen(page: ft.Page, current_user: dict, cart: list, got
                 ft.Container(height=16),
 
                 ft.Image(
-                    src_base64=cart_image_base64,
+                    src_base64=get_base64_image("assets/cart.png"),
                     width=120,
                     height=120,
                     fit=ft.ImageFit.CONTAIN
-                ) if cart_image_base64 else ft.Icon(ft.Icons.CHECK_CIRCLE, size=120, color=ACCENT_DARK),
+                ),
 
                 ft.Container(height=12),
 

@@ -40,3 +40,6 @@ dist/
 
 # Documentation folder to keep local only
 Info-Appdev/
+
+# Generated report exports
+exports/

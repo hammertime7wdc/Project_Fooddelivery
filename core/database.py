@@ -280,7 +280,7 @@ def update_order_status(order_id, new_status, user_id=None):
     Allowed transitions:
         placed          → preparing | out for delivery | cancelled
         preparing       → out for delivery | cancelled
-        out for delivery→ delivered | cancelled
+        out for delivery→ delivered
         delivered       → (nothing – final)
         cancelled       → (nothing – final)
     """
@@ -299,12 +299,14 @@ def update_order_status(order_id, new_status, user_id=None):
         allowed = {
             "placed":          ["preparing", "out for delivery", "cancelled"],
             "preparing":       ["out for delivery", "cancelled"],
-            "out for delivery":["delivered", "cancelled"],
+            "out for delivery":["delivered"],
             "delivered":       [],                     # terminal
             "cancelled":       []                      # terminal
         }
 
         if new_status not in allowed.get(current, []):
+            if current == "out for delivery" and new_status == "cancelled":
+                return False, "Order is already out for delivery and can no longer be cancelled"
             return False, f"Invalid status transition: {current} → {new_status}"
 
         # If cancelled before preparation, restore stock
