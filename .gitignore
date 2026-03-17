@@ -37,3 +37,6 @@ Thumbs.db
 build/
 dist/
 *.spec
+
+# Documentation folder to keep local only
+Info-Appdev/
